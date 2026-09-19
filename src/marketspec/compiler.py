@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -39,6 +40,22 @@ class CompileError(ValueError):
 
 class _DecimalLoader(yaml.SafeLoader):
     pass
+
+
+# PyYAML defaults to YAML 1.1 booleans, where yes/no become True/False.
+# MarketSpec follows YAML 1.2-style booleans so outcome names remain strings.
+_DecimalLoader.yaml_implicit_resolvers = {
+    key: list(value) for key, value in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+for key, resolvers in list(_DecimalLoader.yaml_implicit_resolvers.items()):
+    _DecimalLoader.yaml_implicit_resolvers[key] = [
+        resolver for resolver in resolvers if resolver[0] != "tag:yaml.org,2002:bool"
+    ]
+_DecimalLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:bool",
+    re.compile(r"^(?:true|false)$", re.IGNORECASE),
+    list("tTfF"),
+)
 
 
 def _yaml_decimal(loader: yaml.SafeLoader, node: yaml.Node) -> Decimal:

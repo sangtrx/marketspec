@@ -135,6 +135,23 @@ def _decimal(value: Any, path: str) -> Decimal:
         raise CompileError("invalid_decimal", path, "decimal must be finite")
     return result
 
+_CONTRACT_DECIMAL_RE = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$")
+
+
+def _contract_decimal(value: Any, path: str) -> Decimal:
+    if isinstance(value, float):
+        raise CompileError("binary_float", path, "binary floating-point settlement values are not allowed")
+    if not isinstance(value, str) or _CONTRACT_DECIMAL_RE.fullmatch(value) is None:
+        raise CompileError(
+            "decimal_representation",
+            path,
+            "expected a decimal string such as '100' or '100.5'",
+        )
+    result = Decimal(value)
+    if not result.is_finite():
+        raise CompileError("invalid_decimal", path, "decimal must be finite")
+    return result
+
 
 def _datetime(value: Any, path: str) -> datetime:
     raw = _string(value, path)
@@ -222,7 +239,7 @@ def compile_contract(raw: Any) -> CompiledContract:
     _shape(predicate_raw, "$.predicate", {"operator", "threshold"})
     predicate = Predicate(
         operator=_enum(Operator, predicate_raw["operator"], "$.predicate.operator"),
-        threshold=_decimal(predicate_raw["threshold"], "$.predicate.threshold"),
+        threshold=_contract_decimal(predicate_raw["threshold"], "$.predicate.threshold"),
     )
 
     window_raw = _mapping(root["window"], "$.window")

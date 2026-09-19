@@ -135,7 +135,7 @@ def _decimal(value: Any, path: str) -> Decimal:
         raise CompileError("invalid_decimal", path, "decimal must be finite")
     return result
 
-_CONTRACT_DECIMAL_RE = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$")
+_CONTRACT_DECIMAL_RE = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
 
 
 def _contract_decimal(value: Any, path: str) -> Decimal:

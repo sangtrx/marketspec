@@ -1,5 +1,6 @@
 import json
 import unittest
+from pathlib import Path
 
 from marketspec.compiler import CompileError, compile_contract, compile_text, parse_evidence
 from marketspec.evaluator import evaluate
@@ -66,6 +67,26 @@ outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
         with self.assertRaises(CompileError) as caught:
             compile_contract(raw)
         self.assertEqual(caught.exception.code, "binary_float")
+
+    def test_threshold_schema_and_compiler_require_decimal_string(self):
+        schema_path = Path(__file__).resolve().parents[1] / "src/marketspec/schema/marketspec.schema.json"
+        schema = json.loads(schema_path.read_text())
+        threshold_schema = schema["properties"]["predicate"]["properties"]["threshold"]
+        self.assertEqual(threshold_schema["type"], "string")
+        self.assertIn("pattern", threshold_schema)
+
+        for numeric_threshold in (100, 100.5):
+            raw = contract()
+            raw["predicate"]["threshold"] = numeric_threshold
+            with self.assertRaises(CompileError) as caught:
+                compile_text(json.dumps(raw), format="json")
+            self.assertEqual(caught.exception.code, "decimal_representation")
+
+        compiled = compile_text(
+            json.dumps(contract(predicate={"operator": "above", "threshold": "100.5"})),
+            format="json",
+        )
+        self.assertIn('"threshold":"100.5"', compiled.canonical_json)
 
     def test_naive_datetime_is_rejected(self):
         raw = contract()

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sangtrx/marketspec/schema/marketspec.schema.json",
+  "title": "MarketSpec event contract v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "market_id", "event_id", "predicate", "window", "source", "aggregation", "sampling", "revision_policy", "tie_behavior", "fallback", "outcomes"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "market_id": {"type": "string", "minLength": 1},
+    "event_id": {"type": "string", "minLength": 1},
+    "predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator", "threshold"],
+      "properties": {
+        "operator": {"enum": ["above", "below"]},
+        "threshold": {
+          "oneOf": [
+            {"type": "integer"},
+            {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"}
+          ]
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "timezone"],
+      "properties": {
+        "start": {"type": "string", "format": "date-time"},
+        "end": {"type": "string", "format": "date-time"},
+        "timezone": {"type": "string", "minLength": 1}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "field"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "field": {"type": "string", "minLength": 1}
+      }
+    },
+    "aggregation": {"enum": ["last", "min", "max", "mean"]},
+    "sampling": {"enum": ["all", "latest"]},
+    "revision_policy": {"enum": ["final_only", "latest"]},
+    "tie_behavior": {"enum": ["yes", "no", "insufficient"]},
+    "fallback": {"enum": ["unknown", "invalid"]},
+    "outcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["yes", "no", "unknown", "invalid"],
+      "properties": {
+        "yes": {"type": "string", "minLength": 1},
+        "no": {"type": "string", "minLength": 1},
+        "unknown": {"type": "string", "minLength": 1},
+        "invalid": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

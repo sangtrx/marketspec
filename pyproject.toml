@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marketspec"
+version = "0.0.1"
+description = "Executable deterministic event-contract specifications for prediction markets"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "Sang"}]
+keywords = ["prediction-markets", "event-contracts", "settlement", "oracle", "conformance"]
+
+[project.scripts]
+marketspec = "marketspec.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

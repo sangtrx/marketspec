@@ -1,0 +1,140 @@
+import json
+import unittest
+
+from marketspec.compiler import CompileError, compile_contract, compile_text, parse_evidence
+from marketspec.evaluator import evaluate
+
+
+def contract(**updates):
+    value = {
+        "schema_version": "0.1",
+        "market_id": "market-1",
+        "event_id": "event-1",
+        "predicate": {"operator": "above", "threshold": "100.00"},
+        "window": {
+            "start": "2026-09-19T00:00:00+00:00",
+            "end": "2026-09-20T00:00:00+00:00",
+            "timezone": "UTC",
+        },
+        "source": {"id": "official-feed", "field": "value"},
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {"yes": "YES", "no": "NO", "unknown": "UNKNOWN", "invalid": "INVALID"},
+    }
+    value.update(updates)
+    return value
+
+
+class CompilerTest(unittest.TestCase):
+    def test_canonicalization_and_hash_are_stable(self):
+        first = compile_contract(contract())
+        second = compile_text(json.dumps(contract()), format="json")
+        self.assertEqual(first.content_hash, second.content_hash)
+        self.assertEqual(first.canonical_json, second.canonical_json)
+        self.assertIn('"threshold":"100"', first.canonical_json)
+        self.assertIn('"start":"2026-09-19T00:00:00.000000Z"', first.canonical_json)
+
+    def test_yaml_and_json_compile_to_same_contract(self):
+        yaml_text = """
+schema_version: "0.1"
+market_id: market-1
+event_id: event-1
+predicate: {operator: above, threshold: "100.00"}
+window:
+  start: 2026-09-19T00:00:00+00:00
+  end: 2026-09-20T00:00:00+00:00
+  timezone: UTC
+source: {id: official-feed, field: value}
+aggregation: last
+sampling: all
+revision_policy: final_only
+tie_behavior: no
+fallback: unknown
+outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
+"""
+        self.assertEqual(
+            compile_text(yaml_text, format="yaml").content_hash,
+            compile_text(json.dumps(contract()), format="json").content_hash,
+        )
+
+    def test_binary_float_is_rejected(self):
+        raw = contract()
+        raw["predicate"]["threshold"] = 100.0
+        with self.assertRaises(CompileError) as caught:
+            compile_contract(raw)
+        self.assertEqual(caught.exception.code, "binary_float")
+
+    def test_naive_datetime_is_rejected(self):
+        raw = contract()
+        raw["window"]["start"] = "2026-09-19T00:00:00"
+        with self.assertRaises(CompileError) as caught:
+            compile_contract(raw)
+        self.assertEqual(caught.exception.code, "naive_datetime")
+
+
+class EvaluatorTest(unittest.TestCase):
+    def test_bounded_final_source_observation_replays_identically(self):
+        compiled = compile_contract(contract())
+        evidence = parse_evidence([
+            {
+                "source_id": "official-feed",
+                "field": "value",
+                "observed_at": "2026-09-19T12:00:00+00:00",
+                "value": "99",
+                "final": False,
+                "revision": 1,
+            },
+            {
+                "source_id": "official-feed",
+                "field": "value",
+                "observed_at": "2026-09-19T12:00:00+00:00",
+                "value": "101.0",
+                "final": True,
+                "revision": 2,
+            },
+            {
+                "source_id": "official-feed",
+                "field": "value",
+                "observed_at": "2026-09-21T12:00:00+00:00",
+                "value": "1000",
+                "final": True,
+                "revision": 1,
+            },
+            {
+                "source_id": "other-feed",
+                "field": "value",
+                "observed_at": "2026-09-19T13:00:00+00:00",
+                "value": "1000",
+                "final": True,
+                "revision": 1,
+            },
+        ])
+        first = evaluate(compiled, evidence)
+        second = evaluate(compiled, evidence)
+        self.assertEqual(first.status, "yes")
+        self.assertEqual(first.outcome, "YES")
+        self.assertEqual(first.observed_value, "101")
+        self.assertEqual(first.result_hash, second.result_hash)
+        self.assertEqual(first.evidence_hash, second.evidence_hash)
+
+    def test_tie_and_insufficient_evidence_are_explicit(self):
+        raw = contract(tie_behavior="insufficient")
+        compiled = compile_contract(raw)
+        evidence = parse_evidence([{
+            "source_id": "official-feed",
+            "field": "value",
+            "observed_at": "2026-09-19T12:00:00+00:00",
+            "value": "100",
+            "final": True,
+            "revision": 1,
+        }])
+        result = evaluate(compiled, evidence)
+        self.assertEqual(result.status, "unknown")
+        self.assertEqual(result.reason, "threshold_tie")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -175,9 +175,10 @@ def _timezone(value: Any, path: str) -> str:
 
 
 def _decimal_text(value: Decimal) -> str:
-    if value == 0:
-        return "0"
-    return format(value.normalize(), "f")
+    text = format(value, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return "0" if text in {"0", "-0"} else text
 
 
 def _iso(value: datetime) -> str:

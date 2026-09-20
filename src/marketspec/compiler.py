@@ -78,11 +78,45 @@ def _reject_constant(raw: str) -> None:
     raise CompileError("invalid_number", "$", f"non-finite number {raw!r} is not allowed")
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise CompileError("duplicate_key", "$", f"duplicate object key {key!r}")
+        result[key] = value
+    return result
+
+
+def _yaml_unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
+    result: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=False)
+        try:
+            duplicate = key in result
+        except TypeError as exc:
+            raise CompileError("type_error", "$", "YAML mapping keys must be hashable") from exc
+        if duplicate:
+            raise CompileError("duplicate_key", "$", f"duplicate mapping key {key!r}")
+        result[key] = loader.construct_object(value_node, deep=False)
+    return result
+
+
+_DecimalLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _yaml_unique_mapping,
+)
+
+
 def load_document(text: str, *, format: str | None = None) -> Any:
     fmt = (format or ("json" if text.lstrip().startswith(("{", "[")) else "yaml")).lower()
     try:
         if fmt == "json":
-            return json.loads(text, parse_float=Decimal, parse_constant=_reject_constant)
+            return json.loads(
+                text,
+                parse_float=Decimal,
+                parse_constant=_reject_constant,
+                object_pairs_hook=_unique_json_object,
+            )
         if fmt in {"yaml", "yml"}:
             return yaml.load(text, Loader=_DecimalLoader)
     except CompileError:

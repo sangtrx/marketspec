@@ -12,19 +12,19 @@ from marketspec.sources.core import (
     assess_health,
     retrieval_failure,
 )
-from marketspec.sources.reference import EcbReferenceRateXmlAdapter, NwsLatestTemperatureJsonAdapter
+from marketspec.sources.reference import (\n    EcbReferenceRateXmlAdapter,\n    NwsLatestTemperatureJsonAdapter,\n)
 
 __all__ = [
     "AdapterResult",
+    "EcbReferenceRateXmlAdapter",
     "FailureKind",
     "Finality",
     "HealthPolicy",
     "HealthStatus",
+    "NwsLatestTemperatureJsonAdapter",
     "SourceFailure",
     "SourceIdentity",
     "SourceObservation",
     "assess_health",
     "retrieval_failure",
-    "EcbReferenceRateXmlAdapter",
-    "NwsLatestTemperatureJsonAdapter",
 ]

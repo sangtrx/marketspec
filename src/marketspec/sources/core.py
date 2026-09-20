@@ -9,7 +9,6 @@ from decimal import Decimal
 from enum import Enum
 from typing import TypeAlias
 
-
 NormalizedValue: TypeAlias = Decimal | str | bool
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 

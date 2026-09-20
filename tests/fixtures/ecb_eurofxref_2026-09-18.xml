@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+  <gesmes:subject>Reference rates</gesmes:subject>
+  <Sender>
+    <gesmes:name>European Central Bank</gesmes:name>
+  </Sender>
+  <Cube>
+    <Cube time="2026-09-18">
+      <Cube currency="USD" rate="1.1460"/>
+      <Cube currency="GBP" rate="0.85880"/>
+      <Cube currency="SGD" rate="1.4651"/>
+    </Cube>
+  </Cube>
+</gesmes:Envelope>

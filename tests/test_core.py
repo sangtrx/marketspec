@@ -2,7 +2,12 @@ import json
 import unittest
 from pathlib import Path
 
-from marketspec.compiler import CompileError, compile_contract, compile_text, parse_evidence
+from marketspec.compiler import (
+    CompileError,
+    compile_contract,
+    compile_text,
+    parse_evidence,
+)
 from marketspec.evaluator import evaluate
 
 

@@ -92,8 +92,8 @@ class PropertyFuzzTest(unittest.TestCase):
     def test_seeded_time_boundary_invariant(self):
         raw = contract()
         compiled = compile_contract(raw)
-        start = datetime.fromisoformat(raw["window"]["start"].replace("Z", "+00:00"))
-        end = datetime.fromisoformat(raw["window"]["end"].replace("Z", "+00:00"))
+        start = datetime.fromisoformat(raw["window"]["start"])
+        end = datetime.fromisoformat(raw["window"]["end"])
         rng = random.Random(728)
         offsets = [-1, 0, 1] + [rng.randint(-3600, 3600) for _ in range(247)]
 

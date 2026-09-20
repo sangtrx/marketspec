@@ -67,6 +67,42 @@ outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
             compile_text(json.dumps(contract()), format="json").content_hash,
         )
 
+    def test_duplicate_json_key_is_rejected(self):
+        text = json.dumps(contract()).replace(
+            '"threshold": "100.00"',
+            '"threshold": "100.00", "threshold": "101.00"',
+        )
+        with self.assertRaises(CompileError) as caught:
+            compile_text(text, format="json")
+        self.assertEqual(caught.exception.code, "duplicate_key")
+        self.assertIn("threshold", caught.exception.message)
+
+    def test_duplicate_yaml_key_is_rejected(self):
+        yaml_text = """
+schema_version: "0.1"
+market_id: market-1
+event_id: event-1
+predicate:
+  operator: above
+  threshold: "100.00"
+  threshold: "101.00"
+window:
+  start: 2026-09-19T00:00:00+00:00
+  end: 2026-09-20T00:00:00+00:00
+  timezone: UTC
+source: {id: official-feed, field: value}
+aggregation: last
+sampling: all
+revision_policy: final_only
+tie_behavior: no
+fallback: unknown
+outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
+"""
+        with self.assertRaises(CompileError) as caught:
+            compile_text(yaml_text, format="yaml")
+        self.assertEqual(caught.exception.code, "duplicate_key")
+        self.assertIn("threshold", caught.exception.message)
+
     def test_binary_float_is_rejected(self):
         raw = contract()
         raw["predicate"]["threshold"] = 100.0

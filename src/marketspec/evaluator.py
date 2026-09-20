@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from decimal import Decimal
 from hashlib import sha256
-from typing import Iterable
 
 from marketspec.compiler import canonical_json, decimal_text, iso_utc
 from marketspec.models import (

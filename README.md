@@ -65,6 +65,12 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 
 See `docs/ARCHITECTURE.md` and `docs/OSS-BOUNDARY.md`.
 
+## Versioning and releases
+
+MarketSpec is pre-1.0. Compatibility expectations, changelog rules, exact-SHA release gates, and tag provenance are documented in `docs/RELEASING.md`. User-visible changes are recorded in `CHANGELOG.md`.
+
+No public package availability is implied by this repository alone; publication must be verified separately after a release is actually uploaded.
+
 Internal workflow authority lives in `sangtrx/sang-workspace`; repository `main` is source truth.
 
 ## License

@@ -1,8 +1,8 @@
+import unittest
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-import unittest
 
 from marketspec.sources import (
     AdapterResult,
@@ -18,7 +18,7 @@ from marketspec.sources import (
 
 
 FIXTURES = Path(__file__).with_name("fixtures")
-NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 21, 12, 0, tzinfo=UTC)
 
 
 class SourceAdapterTest(unittest.TestCase):
@@ -55,11 +55,11 @@ class SourceAdapterTest(unittest.TestCase):
 
         self.assertIsNone(result.failure)
         assert result.observation is not None
-        self.assertEqual(result.observation.value, Decimal("26"))
+        self.assertEqual(result.observation.value, Decimal(26))
         self.assertEqual(result.observation.unit, "wmoUnit:degC")
         self.assertEqual(
             result.observation.observed_at,
-            datetime(2026, 9, 20, 20, 30, tzinfo=timezone.utc),
+            datetime(2026, 9, 20, 20, 30, tzinfo=UTC),
         )
 
     def test_unofficial_mirror_is_rejected(self) -> None:

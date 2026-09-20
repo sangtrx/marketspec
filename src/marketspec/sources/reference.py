@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
-from decimal import Decimal, InvalidOperation
 import hashlib
 import json
+from datetime import UTC, date, datetime, time
+from decimal import Decimal, InvalidOperation
 from json import JSONDecodeError
 from typing import Any
 from xml.etree import ElementTree
@@ -160,8 +160,8 @@ class EcbReferenceRateXmlAdapter:
                 message=f"ECB XML has no rate for {self.currency}",
             )
         try:
-            published_date = datetime.strptime(dated_cube.attrib["time"], "%Y-%m-%d").date()
-            published_at = datetime.combine(published_date, time.min, tzinfo=timezone.utc)
+            published_date = date.fromisoformat(dated_cube.attrib["time"])
+            published_at = datetime.combine(published_date, time.min, tzinfo=UTC)
             value = Decimal(quote.attrib["rate"])
         except (ValueError, InvalidOperation) as exc:
             return _failure(
@@ -233,7 +233,7 @@ class NwsLatestTemperatureJsonAdapter:
                 message="NWS temperature value is null",
             )
         try:
-            observed_at = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+            observed_at = datetime.fromisoformat(str(timestamp))
             if observed_at.tzinfo is None or observed_at.utcoffset() is None:
                 raise ValueError("timestamp is naive")
             value = Decimal(str(raw_value))

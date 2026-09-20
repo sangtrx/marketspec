@@ -29,7 +29,11 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 
 See `docs/ARCHITECTURE.md` and `docs/OSS-BOUNDARY.md`.
 
-Internal workflow authority lives in `sangtrx/sang-workspace`; repository `main` is source truth.
+## Contributing and security
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). External contributors only need this public repository; private maintainer workflow data is not required. Community behavior is covered by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and security reports should follow [SECURITY.md](SECURITY.md).
+
+Internal maintainer workflow authority lives in `sangtrx/sang-workspace`; repository `main` is source truth.
 
 ## License
 

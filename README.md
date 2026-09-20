@@ -42,7 +42,10 @@ outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
 python -m pip install -e .
 marketspec compile contract.yaml
 marketspec evaluate contract.yaml evidence.json
+marketspec conformance
 ```
+
+The conformance command runs the bundled, versioned offline golden corpus. See `CONFORMANCE.md`; the JSON corpus is directly reusable by third-party implementations without ResolveOps.
 
 Evidence records are typed objects with `source_id`, `field`, timezone-aware `observed_at`, decimal-string/integer `value`, boolean `final`, and non-negative integer `revision`.
 
@@ -61,6 +64,7 @@ Evidence records are typed objects with `source_id`, `field`, timezone-aware `ob
 ```bash
 PYTHONPATH=src python -m marketspec.cli --version
 PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m marketspec.cli conformance
 ```
 
 See `docs/ARCHITECTURE.md` and `docs/OSS-BOUNDARY.md`.

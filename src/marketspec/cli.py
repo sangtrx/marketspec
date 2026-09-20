@@ -7,6 +7,7 @@ from pathlib import Path
 
 from marketspec import __version__
 from marketspec.compiler import CompileError, compile_text, parse_evidence_text
+from marketspec.conformance_runner import run_corpus
 from marketspec.evaluator import evaluate
 
 
@@ -26,6 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_cmd = sub.add_parser("evaluate", help="evaluate typed evidence against a contract")
     evaluate_cmd.add_argument("contract")
     evaluate_cmd.add_argument("evidence")
+
+    conformance_cmd = sub.add_parser("conformance", help="run the versioned offline conformance corpus")
+    conformance_cmd.add_argument("--corpus", help="optional path to an alternate v0.1 golden.json")
     return parser
 
 
@@ -35,6 +39,11 @@ def main() -> int:
         build_parser().print_help()
         return 0
     try:
+        if args.command == "conformance":
+            summary = run_corpus(Path(args.corpus) if args.corpus else None)
+            print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
+            return 0 if summary["failed"] == 0 else 1
+
         contract_path = Path(args.contract)
         compiled = compile_text(contract_path.read_text(), format=_format(contract_path))
         if args.command == "compile":
@@ -51,7 +60,7 @@ def main() -> int:
     except CompileError as exc:
         print(json.dumps({"error": exc.as_dict()}, sort_keys=True), file=sys.stderr)
         return 2
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         print(json.dumps({"error": {"code": "io_error", "message": str(exc)}}, sort_keys=True), file=sys.stderr)
         return 2
 

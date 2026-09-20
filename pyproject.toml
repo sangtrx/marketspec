@@ -20,4 +20,4 @@ marketspec = "marketspec.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-marketspec = ["schema/*.json"]
+marketspec = ["schema/*.json", "conformance/v0.1/*.json"]

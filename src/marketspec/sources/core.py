@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-import re
 from typing import TypeAlias
 
 
@@ -118,7 +118,7 @@ class HealthPolicy:
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("health clock must be timezone-aware")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 def assess_health(
@@ -149,7 +149,7 @@ def assess_health(
         policy.require_final and observation.finality is not Finality.FINAL
     ):
         return HealthStatus.REVISION_PENDING
-    if current - observation.published_at.astimezone(timezone.utc) > policy.max_age:
+    if current - observation.published_at.astimezone(UTC) > policy.max_age:
         return HealthStatus.STALE
     return HealthStatus.HEALTHY
 

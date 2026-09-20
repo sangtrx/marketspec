@@ -1,0 +1,529 @@
+{
+  "schema_version": "0.1",
+  "immutable": true,
+  "cases": [
+    {
+      "kind": "evaluation",
+      "name": "strict-equality",
+      "description": "Strict above with equality resolves through tie_behavior=no.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "strict-equality",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "100.000",
+          "final": true,
+          "revision": 1
+        }
+      ],
+      "expected": {
+        "contract_hash": "addf0f042625d8078349f94eda9e90c3cc329354bac256daf69b191dc9204eed",
+        "evidence_hash": "ce892f19bc276aec6cbe6da56d209ff6a6f29ab8086fe8e59b1e76351f6b287f",
+        "status": "no",
+        "outcome": "NO",
+        "observed_value": "100",
+        "reason": "threshold_tie",
+        "result_hash": "7af7d2c5b5272b440102da43feebea2efed837c4a3f0b5895a016ca7b473dac5"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "name": "inclusive-equality",
+      "description": "Inclusive-above semantics are represented by above + tie_behavior=yes.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "inclusive-equality",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "yes",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "100.0",
+          "final": true,
+          "revision": 1
+        }
+      ],
+      "expected": {
+        "contract_hash": "4c18b97636e5b15e26fc18764ed59656b29f97cc49a49a299182eddbf9ee7e61",
+        "evidence_hash": "ce892f19bc276aec6cbe6da56d209ff6a6f29ab8086fe8e59b1e76351f6b287f",
+        "status": "yes",
+        "outcome": "YES",
+        "observed_value": "100",
+        "reason": "threshold_tie",
+        "result_hash": "8f368d50b9be584292ef25b33b90bd46864ee12d4cd1bea365518721413f104e"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "name": "missing-evidence",
+      "description": "No admitted evidence fails closed to UNKNOWN.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "missing",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [],
+      "expected": {
+        "contract_hash": "2700ddcc2d36b48ab157b45e972a6b69b61dee8fe3d88b00bba9fc86a9ac7a2d",
+        "evidence_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "status": "unknown",
+        "outcome": "UNKNOWN",
+        "observed_value": null,
+        "reason": "insufficient_evidence",
+        "result_hash": "3b18924c0a93c3271f296a6e5a355c917e23d1ab8d79abd61ecaaa5bf4672396"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "name": "stale-window",
+      "description": "Evidence before the observation window is not admitted.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "stale-window",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-18T23:59:59Z",
+          "value": "1000",
+          "final": true,
+          "revision": 1
+        }
+      ],
+      "expected": {
+        "contract_hash": "ea45be5cc70d6849648c8e6a57c5c0f8686864fa5057494f9fd6f60ee206bd2e",
+        "evidence_hash": "f4807302f90b8c96195be7b20f4cb66445651155cea933bfe6b8de5c303286f8",
+        "status": "unknown",
+        "outcome": "UNKNOWN",
+        "observed_value": null,
+        "reason": "insufficient_evidence",
+        "result_hash": "73ef4f13a883a246c5bba67bfab961709768c0ad92dd54a76c9eefce1e0038e6"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "name": "dst-boundaries",
+      "description": "Explicit-offset DST fold window includes both start and end.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "dst-boundaries",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-11-01T01:30:00-04:00",
+          "end": "2026-11-01T01:30:00-05:00",
+          "timezone": "America/New_York"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-11-01T01:30:00-04:00",
+          "value": "99",
+          "final": true,
+          "revision": 1
+        },
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-11-01T01:30:00-05:00",
+          "value": "101",
+          "final": true,
+          "revision": 1
+        }
+      ],
+      "expected": {
+        "contract_hash": "8151d0a280f9e3ecc5c573d02de58bf04b0e2f405321c064b0f128b54e634394",
+        "evidence_hash": "e6e701e9f0bb840b0b6a22fcf8bd1481e518cbcc9eb3fa4bb364a6b49117f5a3",
+        "status": "yes",
+        "outcome": "YES",
+        "observed_value": "101",
+        "reason": "predicate_evaluated",
+        "result_hash": "71a192415d81b8a836110de2d1833891abd6b661d66e920006992f4396de64a9"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "name": "revisions-out-of-order",
+      "description": "Out-of-order observations and corrections select the highest revision per timestamp.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "revisions",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "latest",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "101",
+          "final": true,
+          "revision": 2
+        },
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "99",
+          "final": false,
+          "revision": 1
+        },
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "101",
+          "final": true,
+          "revision": 2
+        }
+      ],
+      "expected": {
+        "contract_hash": "f20fb5a709b6ba53d1d113137a3e4ccb91f4ee4f6c9f10ce9254447fe512b6f9",
+        "evidence_hash": "ffbad26c464e3e4af52bcaa6abf99a7c3ef028518afa23f6f5fc3a43c1abe473",
+        "status": "yes",
+        "outcome": "YES",
+        "observed_value": "101",
+        "reason": "predicate_evaluated",
+        "result_hash": "d821cea66c93589eb19b279f5bf434922d17cc60ec419b2cf70b671726f30968"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "name": "conflicting-evidence",
+      "description": "Same timestamp/revision with conflicting values fails closed INVALID.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "conflict",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "latest",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "101",
+          "final": true,
+          "revision": 2
+        },
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "102",
+          "final": true,
+          "revision": 2
+        }
+      ],
+      "expected": {
+        "contract_hash": "d4f2ba496e2fc8b1d50e76c928ebd8bac69299594b93d58e588952b73a1ef83c",
+        "evidence_hash": "e685d4ee781c1200d04d0427bc20b2bb80af0f205eb12a9d5f3dec79ac9b6140",
+        "status": "invalid",
+        "outcome": "INVALID",
+        "observed_value": null,
+        "reason": "conflicting_evidence",
+        "result_hash": "25c5e8ceba2554fb10c64f54a3c6dff8bbad734eae3a4cfdea05d3e6f3273109"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "name": "decimal-scale",
+      "description": "Decimal scale normalizes canonically without binary floating point.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "decimal-scale",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.0000"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "evidence": [
+        {
+          "source_id": "official-feed",
+          "field": "value",
+          "observed_at": "2026-09-19T12:00:00Z",
+          "value": "100.5000",
+          "final": true,
+          "revision": 1
+        }
+      ],
+      "expected": {
+        "contract_hash": "c6a78f6998831dfb344fb894466ea7fbd8b0822e76266974dcf441689b5c0566",
+        "evidence_hash": "8350c647f5a944cc14d73801bba324425826123b3bfb9562b725a57624c88b7b",
+        "status": "yes",
+        "outcome": "YES",
+        "observed_value": "100.5",
+        "reason": "predicate_evaluated",
+        "result_hash": "5611c8b9a8beea192c9e0c9cc7263adca4abd3e556ad52e5d009357f8e04250e"
+      }
+    },
+    {
+      "kind": "compile_error",
+      "name": "invalid-window",
+      "description": "Impossible observation window fails closed.",
+      "contract": {
+        "schema_version": "0.1",
+        "market_id": "golden",
+        "event_id": "invalid-window",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-20T00:00:00Z",
+          "end": "2026-09-19T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "expected_error": {
+        "code": "invalid_window",
+        "path": "$.window"
+      }
+    },
+    {
+      "kind": "compile_error",
+      "name": "unsupported-version",
+      "description": "Unpromised forward schema versions fail closed.",
+      "contract": {
+        "schema_version": "0.2",
+        "market_id": "golden",
+        "event_id": "unsupported-version",
+        "predicate": {
+          "operator": "above",
+          "threshold": "100.00"
+        },
+        "window": {
+          "start": "2026-09-19T00:00:00Z",
+          "end": "2026-09-20T00:00:00Z",
+          "timezone": "UTC"
+        },
+        "source": {
+          "id": "official-feed",
+          "field": "value"
+        },
+        "aggregation": "last",
+        "sampling": "all",
+        "revision_policy": "final_only",
+        "tie_behavior": "no",
+        "fallback": "unknown",
+        "outcomes": {
+          "yes": "YES",
+          "no": "NO",
+          "unknown": "UNKNOWN",
+          "invalid": "INVALID"
+        }
+      },
+      "expected_error": {
+        "code": "schema_version",
+        "path": "$.schema_version"
+      }
+    }
+  ]
+}

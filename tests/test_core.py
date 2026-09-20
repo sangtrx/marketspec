@@ -1,5 +1,6 @@
 import json
 import unittest
+from decimal import ROUND_DOWN, localcontext
 from pathlib import Path
 
 from marketspec.compiler import (
@@ -100,6 +101,24 @@ outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
             compile_contract(raw)
         self.assertEqual(caught.exception.code, "naive_datetime")
 
+    def test_decimal_canonicalization_is_exact_and_context_independent(self):
+        raw = contract(predicate={
+            "operator": "above",
+            "threshold": "123456789012345678901234567890.1234500",
+        })
+        baseline = compile_contract(raw)
+        with localcontext() as context:
+            context.prec = 6
+            context.rounding = ROUND_DOWN
+            altered = compile_contract(raw)
+
+        self.assertEqual(baseline.canonical_json, altered.canonical_json)
+        self.assertEqual(baseline.content_hash, altered.content_hash)
+        self.assertIn(
+            '"threshold":"123456789012345678901234567890.12345"',
+            baseline.canonical_json,
+        )
+
 
 class EvaluatorTest(unittest.TestCase):
     def test_bounded_final_source_observation_replays_identically(self):
@@ -160,6 +179,59 @@ class EvaluatorTest(unittest.TestCase):
         result = evaluate(compiled, evidence)
         self.assertEqual(result.status, "unknown")
         self.assertEqual(result.reason, "threshold_tie")
+
+    def test_mean_is_exact_and_context_independent(self):
+        compiled = compile_contract(contract(
+            aggregation="mean",
+            predicate={"operator": "above", "threshold": "1.5"},
+        ))
+        evidence = parse_evidence([
+            {
+                "source_id": "official-feed",
+                "field": "value",
+                "observed_at": "2026-09-19T12:00:00+00:00",
+                "value": "1.111111111111111111111111111111",
+                "final": True,
+                "revision": 1,
+            },
+            {
+                "source_id": "official-feed",
+                "field": "value",
+                "observed_at": "2026-09-19T13:00:00+00:00",
+                "value": "1.888888888888888888888888888889",
+                "final": True,
+                "revision": 1,
+            },
+        ])
+        baseline = evaluate(compiled, evidence)
+        with localcontext() as context:
+            context.prec = 4
+            context.rounding = ROUND_DOWN
+            altered = evaluate(compiled, evidence)
+
+        self.assertEqual(baseline.result_hash, altered.result_hash)
+        self.assertEqual(baseline.observed_value, "1.5")
+        self.assertEqual(baseline.status, "no")
+
+    def test_non_terminating_mean_fails_closed(self):
+        compiled = compile_contract(contract(
+            aggregation="mean",
+            predicate={"operator": "above", "threshold": "1"},
+        ))
+        evidence = parse_evidence([
+            {
+                "source_id": "official-feed",
+                "field": "value",
+                "observed_at": f"2026-09-19T{hour:02d}:00:00+00:00",
+                "value": value,
+                "final": True,
+                "revision": 1,
+            }
+            for hour, value in enumerate(("1", "2", "2"), start=10)
+        ])
+        result = evaluate(compiled, evidence)
+        self.assertEqual(result.status, "unknown")
+        self.assertEqual(result.reason, "non_terminating_mean")
 
 
 if __name__ == "__main__":

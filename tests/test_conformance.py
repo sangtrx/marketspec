@@ -1,6 +1,7 @@
 import copy
 import random
 import unittest
+from datetime import datetime, timedelta
 
 from marketspec.compiler import CompileError, compile_contract, parse_evidence
 from marketspec.conformance_runner import run_corpus
@@ -87,6 +88,27 @@ class PropertyFuzzTest(unittest.TestCase):
             actual = evaluate(compiled, parse_evidence(shuffled))
             self.assertEqual(actual.evidence_hash, expected.evidence_hash)
             self.assertEqual(actual.result_hash, expected.result_hash)
+
+    def test_seeded_time_boundary_invariant(self):
+        raw = contract()
+        compiled = compile_contract(raw)
+        start = datetime.fromisoformat(raw["window"]["start"].replace("Z", "+00:00"))
+        end = datetime.fromisoformat(raw["window"]["end"].replace("Z", "+00:00"))
+        rng = random.Random(728)
+        offsets = [-1, 0, 1] + [rng.randint(-3600, 3600) for _ in range(247)]
+
+        for boundary in (start, end):
+            for offset_seconds in offsets:
+                observed_at = boundary + timedelta(seconds=offset_seconds)
+                record = evidence("101")
+                record["observed_at"] = observed_at.isoformat().replace("+00:00", "Z")
+                result = evaluate(compiled, parse_evidence([record]))
+                admitted = start <= observed_at <= end
+                self.assertEqual(result.status, "yes" if admitted else "unknown")
+                self.assertEqual(
+                    result.reason,
+                    "predicate_evaluated" if admitted else "insufficient_evidence",
+                )
 
     def test_invalid_contracts_fail_closed(self):
         bad_window = contract()

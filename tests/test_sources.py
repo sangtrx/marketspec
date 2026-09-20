@@ -16,7 +16,6 @@ from marketspec.sources import (
     retrieval_failure,
 )
 
-
 FIXTURES = Path(__file__).with_name("fixtures")
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=UTC)
 

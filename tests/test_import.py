@@ -1,4 +1,5 @@
 import unittest
+
 import marketspec
 from marketspec.cli import build_parser
 

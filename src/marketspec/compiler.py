@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -162,7 +162,7 @@ def _datetime(value: Any, path: str) -> datetime:
         raise CompileError("invalid_datetime", path, "expected ISO-8601 datetime") from exc
     if result.tzinfo is None or result.utcoffset() is None:
         raise CompileError("naive_datetime", path, "datetime must include a UTC offset")
-    return result.astimezone(timezone.utc)
+    return result.astimezone(UTC)
 
 
 def _timezone(value: Any, path: str) -> str:
@@ -181,7 +181,7 @@ def _decimal_text(value: Decimal) -> str:
 
 
 def _iso(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def canonical_contract_dict(contract: EventContract) -> dict[str, Any]:

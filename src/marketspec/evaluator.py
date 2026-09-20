@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from decimal import Decimal
+from fractions import Fraction
 from hashlib import sha256
 
 from marketspec.compiler import canonical_json, decimal_text, iso_utc
@@ -69,6 +70,29 @@ def _result(
     )
 
 
+class _NonTerminatingMean(ValueError):
+    pass
+
+
+def _exact_mean(values: list[Decimal]) -> Decimal:
+    mean = sum((Fraction(value) for value in values), Fraction(0)) / len(values)
+    denominator = mean.denominator
+    twos = 0
+    fives = 0
+    while denominator % 2 == 0:
+        denominator //= 2
+        twos += 1
+    while denominator % 5 == 0:
+        denominator //= 5
+        fives += 1
+    if denominator != 1:
+        raise _NonTerminatingMean
+
+    scale = max(twos, fives)
+    scaled_numerator = mean.numerator * (2 ** (scale - twos)) * (5 ** (scale - fives))
+    return Decimal(f"{scaled_numerator}e-{scale}")
+
+
 def _aggregate(values: list[Evidence], aggregation: Aggregation) -> Decimal:
     if aggregation is Aggregation.LAST:
         return max(values, key=lambda item: (item.observed_at, item.revision)).value
@@ -78,7 +102,7 @@ def _aggregate(values: list[Evidence], aggregation: Aggregation) -> Decimal:
     if aggregation is Aggregation.MAX:
         return max(decimals)
     if aggregation is Aggregation.MEAN:
-        return sum(decimals, Decimal(0)) / Decimal(len(decimals))
+        return _exact_mean(decimals)
     raise AssertionError(f"unsupported aggregation: {aggregation}")
 
 
@@ -114,7 +138,12 @@ def evaluate(compiled: CompiledContract, evidence: Iterable[Evidence]) -> Evalua
         status = "unknown" if contract.fallback is Fallback.UNKNOWN else "invalid"
         return _result(compiled, evidence_hash, status, None, "insufficient_evidence")
 
-    observed = _aggregate(admitted, contract.aggregation)
+    try:
+        observed = _aggregate(admitted, contract.aggregation)
+    except _NonTerminatingMean:
+        status = "unknown" if contract.fallback is Fallback.UNKNOWN else "invalid"
+        return _result(compiled, evidence_hash, status, None, "non_terminating_mean")
+
     threshold = contract.predicate.threshold
     if observed == threshold:
         if contract.tie_behavior is TieBehavior.INSUFFICIENT:

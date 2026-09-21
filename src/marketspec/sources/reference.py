@@ -32,8 +32,9 @@ def _json_shape(value: Any, path: str = "$") -> list[str]:
         return rows
     if isinstance(value, list):
         rows = [f"{path}:array"]
-        if value:
-            rows.extend(_json_shape(value[0], f"{path}[]"))
+        shapes = {tuple(_json_shape(item, f"{path}[]")) for item in value}
+        for shape in sorted(shapes):
+            rows.extend(shape)
         return rows
     if value is None:
         kind = "null"
@@ -61,8 +62,9 @@ def _xml_shape(element: ElementTree.Element, path: str = "") -> list[str]:
     name = _local_name(element.tag)
     current = f"{path}/{name}" if path else f"/{name}"
     rows = [f"{current}@{','.join(sorted(element.attrib))}"]
-    for child in list(element):
-        rows.extend(_xml_shape(child, current))
+    shapes = {tuple(_xml_shape(child, current)) for child in list(element)}
+    for shape in sorted(shapes):
+        rows.extend(shape)
     return rows
 
 

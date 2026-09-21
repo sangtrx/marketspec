@@ -16,7 +16,10 @@ from marketspec.sources import (
     assess_health,
     retrieval_failure,
 )
-from marketspec.sources.reference import _json_schema_fingerprint, _xml_schema_fingerprint
+from marketspec.sources.reference import (
+    _json_schema_fingerprint,
+    _xml_schema_fingerprint,
+)
 
 FIXTURES = Path(__file__).with_name("fixtures")
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=UTC)

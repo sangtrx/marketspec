@@ -3,6 +3,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from xml.etree import ElementTree
 
 from marketspec.sources import (
     AdapterResult,
@@ -15,6 +16,7 @@ from marketspec.sources import (
     assess_health,
     retrieval_failure,
 )
+from marketspec.sources.reference import _json_schema_fingerprint, _xml_schema_fingerprint
 
 FIXTURES = Path(__file__).with_name("fixtures")
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=UTC)
@@ -59,6 +61,42 @@ class SourceAdapterTest(unittest.TestCase):
         self.assertEqual(
             result.observation.observed_at,
             datetime(2026, 9, 20, 20, 30, tzinfo=UTC),
+        )
+
+    def test_json_schema_fingerprint_uses_all_distinct_array_shapes_without_order_noise(self) -> None:
+        first = {"items": [{"a": 1}, {"b": "x"}, {"a": 2}]}
+        reordered = {"items": [{"b": "y"}, {"a": 3}]}
+        drifted = {"items": [{"a": 1}, {"b": "x"}, {"c": True}]}
+
+        self.assertEqual(
+            _json_schema_fingerprint(first),
+            _json_schema_fingerprint(reordered),
+        )
+        self.assertNotEqual(
+            _json_schema_fingerprint(first),
+            _json_schema_fingerprint(drifted),
+        )
+
+    def test_xml_schema_fingerprint_ignores_repetition_and_order_but_detects_shape_drift(
+        self,
+    ) -> None:
+        first = ElementTree.fromstring(
+            b"<root><item a='1'/><item a='2'/><note x='1'/></root>"
+        )
+        reordered = ElementTree.fromstring(
+            b"<root><note x='9'/><item a='3'/></root>"
+        )
+        drifted = ElementTree.fromstring(
+            b"<root><note x='9'/><item a='3' extra='1'/></root>"
+        )
+
+        self.assertEqual(
+            _xml_schema_fingerprint(first),
+            _xml_schema_fingerprint(reordered),
+        )
+        self.assertNotEqual(
+            _xml_schema_fingerprint(first),
+            _xml_schema_fingerprint(drifted),
         )
 
     def test_unofficial_mirror_is_rejected(self) -> None:

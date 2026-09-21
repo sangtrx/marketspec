@@ -1,10 +1,10 @@
-import pathlib
 import re
 import tomllib
 import unittest
+from pathlib import Path
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReleaseMetadataTest(unittest.TestCase):

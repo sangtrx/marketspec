@@ -2,9 +2,52 @@
 
 **Executable, deterministic event-contract specifications for prediction markets.**
 
-MarketSpec is an experimental open-source toolkit for turning explicit event-market rules into machine-checkable contracts, deterministic evaluation inputs, and reproducible conformance tests.
+MarketSpec is an experimental open-source toolkit for turning explicit event-market rules into machine-checkable contracts, deterministic evaluation inputs, and reproducible results.
 
 It is intentionally **not** a trading bot, exchange, custody system, or oracle that invents missing facts.
+
+## v0.1 core
+
+The public core provides:
+
+- a typed event-contract model with explicit market/event identity, source binding, bounded observation window + IANA timezone, sampling/aggregation, revision/finality policy, threshold/tie semantics, fallback behavior, and outcome mapping;
+- YAML/JSON compilation into deterministic canonical JSON + SHA-256 content identity;
+- typed fail-closed compiler errors, including rejection of naive datetimes and binary floating-point settlement values;
+- deterministic evaluation of admitted typed evidence;
+- a public JSON Schema at `src/marketspec/schema/marketspec.schema.json`.
+
+A minimal contract:
+
+```yaml
+schema_version: "0.1"
+market_id: example-market
+event_id: example-event
+predicate: {operator: above, threshold: "100.0"}
+window:
+  start: 2026-09-19T00:00:00Z
+  end: 2026-09-20T00:00:00Z
+  timezone: UTC
+source: {id: official-feed, field: value}
+aggregation: last
+sampling: all
+revision_policy: final_only
+tie_behavior: no
+fallback: unknown
+outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
+```
+
+## CLI
+
+```bash
+python -m pip install -e .
+marketspec compile contract.yaml
+marketspec evaluate contract.yaml evidence.json
+marketspec conformance
+```
+
+The conformance command runs the bundled, versioned offline golden corpus. See `CONFORMANCE.md`; the JSON corpus is directly reusable by third-party implementations without ResolveOps.
+
+Evidence records are typed objects with `source_id`, `field`, timezone-aware `observed_at`, decimal-string/integer `value`, boolean `final`, and non-negative integer `revision`.
 
 ## Design principles
 
@@ -13,21 +56,24 @@ It is intentionally **not** a trading bot, exchange, custody system, or oracle t
 - Use explicit timezone and revision/finality semantics.
 - Use decimal/fixed-point values for settlement thresholds.
 - Preserve deterministic canonicalization and replay.
-- Make missing, stale, conflicting, and revised evidence first-class states.
+- Make missing and conflicting evidence explicit rather than silently producing YES/NO.
 - Keep the core useful without a hosted ResolveOps account.
-
-## Status
-
-Early bootstrap. Compiler/runtime work is tracked in `sangtrx/sang-workspace#727`; conformance is tracked in `#728`.
 
 ## Local verification
 
 ```bash
 PYTHONPATH=src python -m marketspec.cli --version
 PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m marketspec.cli conformance
 ```
 
 See `docs/ARCHITECTURE.md` and `docs/OSS-BOUNDARY.md`.
+
+## Versioning and releases
+
+MarketSpec is pre-1.0. Compatibility expectations, changelog rules, exact-SHA release gates, and tag provenance are documented in `docs/RELEASING.md`. User-visible changes are recorded in `CHANGELOG.md`.
+
+No public package availability is implied by this repository alone; publication must be verified separately after a release is actually uploaded.
 
 ## Contributing and security
 

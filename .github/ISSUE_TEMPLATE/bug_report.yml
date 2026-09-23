@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a reproducible MarketSpec defect
+title: "[bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do not include vulnerability details here; use SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: MarketSpec version, tag, or exact commit SHA.
+      placeholder: "0.0.1 or <commit SHA>"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem
+      description: What happened, and why is it incorrect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest public spec/contract, command, and steps that reproduce the problem.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Evidence or fixture
+      description: Paste or link a minimized, sanitized public fixture when the result depends on evidence.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected deterministic result
+      description: What result should the same admitted contract + evidence produce?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the observed error/result and whether replay is stable.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Python version, OS, and any other relevant public environment details.
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Report hygiene
+      options:
+        - label: I removed secrets, credentials, private ResolveOps data, proprietary Curren research, and unrelated personal data.
+          required: true
+        - label: This is not a security vulnerability disclosure.
+          required: true

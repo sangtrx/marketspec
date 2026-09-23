@@ -1,8 +1,8 @@
 # MarketSpec
 
-**Executable, deterministic event-contract specifications for prediction markets.**
+**Turn explicit event-market settlement rules and typed evidence into deterministic, replayable outcomes.**
 
-MarketSpec is an experimental open-source toolkit for turning explicit event-market rules into machine-checkable contracts, deterministic evaluation inputs, and reproducible results.
+MarketSpec is an experimental open-source toolkit for compiling explicit event contracts into canonical identities, admitting typed evidence, and evaluating the same inputs to the same machine-checkable result.
 
 It is intentionally **not** a trading bot, exchange, custody system, or oracle that invents missing facts.
 
@@ -45,6 +45,8 @@ marketspec evaluate contract.yaml evidence.json
 marketspec conformance
 ```
 
+For a fresh clone, follow the [5-minute quickstart](docs/QUICKSTART.md). The [worked examples](docs/EXAMPLES.md) reuse the versioned conformance corpus so expected hashes and fail-closed outcomes stay reproducible.
+
 The conformance command runs the bundled, versioned offline golden corpus. See `CONFORMANCE.md`; the JSON corpus is directly reusable by third-party implementations without ResolveOps.
 
 Evidence records are typed objects with `source_id`, `field`, timezone-aware `observed_at`, decimal-string/integer `value`, boolean `final`, and non-negative integer `revision`.
@@ -67,7 +69,7 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m marketspec.cli conformance
 ```
 
-See `docs/ARCHITECTURE.md` and `docs/OSS-BOUNDARY.md`.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the contract/evidence model and current limitations, and `docs/OSS-BOUNDARY.md` for the public/private boundary.
 
 ## Versioning and releases
 
@@ -75,7 +77,9 @@ MarketSpec is pre-1.0. Compatibility expectations, changelog rules, exact-SHA re
 
 No public package availability is implied by this repository alone; publication must be verified separately after a release is actually uploaded.
 
-Internal workflow authority lives in `sangtrx/sang-workspace`; repository `main` is source truth.
+## Maintainers
+
+Internal workflow authority lives in `sangtrx/sang-workspace`; repository `main` is source truth. External users do not need the internal workflow to install, run, or evaluate MarketSpec.
 
 ## License
 

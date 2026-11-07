@@ -251,8 +251,12 @@ class ReplayImpactTest(unittest.TestCase):
             )
             self.assertEqual(code, 2)
             self.assertFalse(stdout)
-            self.assertEqual(json.loads(stderr)["error"]["code"], "output_input_conflict")
-            self.assertEqual(evidence_path.read_text(encoding="utf-8"), original_evidence)
+            self.assertEqual(
+                json.loads(stderr)["error"]["code"], "output_input_conflict"
+            )
+            self.assertEqual(
+                evidence_path.read_text(encoding="utf-8"), original_evidence
+            )
 
     def test_input_order_does_not_change_evidence_hash_or_resolution(self) -> None:
         first = example_contract()

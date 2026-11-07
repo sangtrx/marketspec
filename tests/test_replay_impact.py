@@ -77,7 +77,9 @@ class ReplayImpactTest(unittest.TestCase):
         after = copy.deepcopy(before)
         after["outcomes"]["yes"] = "SETTLED_YES"
         report = diff_contracts(
-            compile_contract(before), compile_contract(after), parse_evidence(evidence_rows())
+            compile_contract(before),
+            compile_contract(after),
+            parse_evidence(evidence_rows()),
         )
         replay = report["replay"]
         self.assertEqual(replay["classification"], "outcome_label_changed")

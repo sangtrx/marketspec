@@ -17,6 +17,18 @@ def _format(path: Path) -> str:
     return "json" if suffix == ".json" else "yaml"
 
 
+def _check_output_path(output: Path, inputs: list[Path]) -> None:
+    """Prevent reports from overwriting inputs through path, symlink or hardlink aliases."""
+    for source in inputs:
+        if output.resolve() == source.resolve() or (
+            output.exists() and source.exists() and output.samefile(source)
+        ):
+            raise ContractComparisonError(
+                "output_input_conflict",
+                "report output must not overwrite a contract or evidence input",
+            )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="marketspec")
     parser.add_argument(
@@ -75,16 +87,22 @@ def main() -> int:
                 after_path.read_text(encoding="utf-8"), format=_format(after_path)
             )
             evidence = None
+            input_paths = [before_path, after_path]
             if args.evidence is not None:
                 evidence_path = Path(args.evidence)
+                input_paths.append(evidence_path)
                 evidence = parse_evidence_text(
                     evidence_path.read_text(encoding="utf-8"),
                     format=_format(evidence_path),
                 )
+            output_path = Path(args.output) if args.output is not None else None
+            if output_path is not None:
+                _check_output_path(output_path, input_paths)
+
             report = diff_contracts(before, after, evidence=evidence)
             payload = json.dumps(report, ensure_ascii=False, sort_keys=True)
-            if args.output is not None:
-                Path(args.output).write_text(payload + "\n", encoding="utf-8")
+            if output_path is not None:
+                output_path.write_text(payload + "\n", encoding="utf-8")
             else:
                 print(payload)
             return 1 if report["changed"] else 0

@@ -232,6 +232,28 @@ class ReplayImpactTest(unittest.TestCase):
             self.assertFalse(stdout)
             self.assertEqual(json.loads(stderr)["error"]["code"], "io_error")
 
+    def test_cli_output_never_overwrites_evidence_input(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            contract = root / "contract.json"
+            evidence_path = root / "observations.json"
+            contract.write_text(json.dumps(example_contract()), encoding="utf-8")
+            original_evidence = json.dumps(evidence_rows())
+            evidence_path.write_text(original_evidence, encoding="utf-8")
+            code, stdout, stderr = invoke(
+                "diff",
+                str(contract),
+                str(contract),
+                "--evidence",
+                str(evidence_path),
+                "--output",
+                str(evidence_path),
+            )
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertEqual(json.loads(stderr)["error"]["code"], "output_input_conflict")
+            self.assertEqual(evidence_path.read_text(encoding="utf-8"), original_evidence)
+
     def test_input_order_does_not_change_evidence_hash_or_resolution(self) -> None:
         first = example_contract()
         second = copy.deepcopy(first)

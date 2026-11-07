@@ -211,6 +211,34 @@ class ContractDiffTest(unittest.TestCase):
         self.assertFalse(output)
         self.assertEqual(json.loads(stderr)["error"]["code"], "parse_error")
 
+    def test_cli_output_never_overwrites_contract_inputs(self) -> None:
+        baseline = json.dumps(example_contract())
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "before.json"
+            second = root / "after.json"
+            first.write_text(baseline, encoding="utf-8")
+            second.write_text(baseline, encoding="utf-8")
+            for alias_kind in ("same_path", "symlink", "hardlink"):
+                with self.subTest(alias_kind=alias_kind):
+                    if alias_kind == "same_path":
+                        output = first
+                    elif alias_kind == "symlink":
+                        output = root / "contract-link.json"
+                        output.symlink_to(first)
+                    else:
+                        output = root / "contract-hardlink.json"
+                        output.hardlink_to(first)
+                    code, stdout, stderr = invoke(
+                        "diff", str(first), str(second), "--output", str(output)
+                    )
+                    self.assertEqual(code, 2)
+                    self.assertFalse(stdout)
+                    self.assertEqual(
+                        json.loads(stderr)["error"]["code"], "output_input_conflict"
+                    )
+                    self.assertEqual(first.read_text(encoding="utf-8"), baseline)
+
     def test_cli_cross_format_round_trip(self) -> None:
         yaml = """
 schema_version: "0.1"

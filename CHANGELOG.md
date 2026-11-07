@@ -8,6 +8,9 @@ MarketSpec has not yet made a public tagged/package release. Until the first rel
 
 ### Added
 
+- Offline canonical contract revision diff and CI-friendly settlement-change gate (`marketspec diff`).
+- Synthetic before/after rule examples and deterministic diff regression coverage.
+
 - Initial v0.1 typed contract/compiler/evaluator work.
 - Explicit pre-1.0 compatibility and exact-SHA release policy.
 - Package discoverability metadata and project links.

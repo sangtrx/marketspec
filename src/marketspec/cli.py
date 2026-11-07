@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from marketspec import __version__
+from marketspec.contract_diff import ContractComparisonError, diff_contracts
 from marketspec.compiler import CompileError, compile_text, parse_evidence_text
 from marketspec.conformance_runner import run_corpus
 from marketspec.evaluator import evaluate
@@ -28,6 +29,10 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_cmd.add_argument("contract")
     evaluate_cmd.add_argument("evidence")
 
+    diff_cmd = sub.add_parser("diff", help="compare two typed settlement contracts for material drift")
+    diff_cmd.add_argument("before", help="baseline YAML or JSON contract")
+    diff_cmd.add_argument("after", help="candidate YAML or JSON contract")
+
     conformance_cmd = sub.add_parser("conformance", help="run the versioned offline conformance corpus")
     conformance_cmd.add_argument("--corpus", help="optional path to an alternate v0.1 golden.json")
     return parser
@@ -44,6 +49,14 @@ def main() -> int:
             print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
             return 0 if summary["failed"] == 0 else 1
 
+        if args.command == "diff":
+            before_path, after_path = Path(args.before), Path(args.after)
+            before = compile_text(before_path.read_text(encoding="utf-8"), format=_format(before_path))
+            after = compile_text(after_path.read_text(encoding="utf-8"), format=_format(after_path))
+            report = diff_contracts(before, after)
+            print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+            return 1 if report["changed"] else 0
+
         contract_path = Path(args.contract)
         compiled = compile_text(contract_path.read_text(), format=_format(contract_path))
         if args.command == "compile":
@@ -57,6 +70,9 @@ def main() -> int:
         evidence = parse_evidence_text(evidence_path.read_text(), format=_format(evidence_path))
         print(json.dumps(evaluate(compiled, evidence).as_dict(), ensure_ascii=False, sort_keys=True))
         return 0
+    except ContractComparisonError as exc:
+        print(json.dumps({"error": exc.as_dict()}, sort_keys=True), file=sys.stderr)
+        return 2
     except CompileError as exc:
         print(json.dumps({"error": exc.as_dict()}, sort_keys=True), file=sys.stderr)
         return 2

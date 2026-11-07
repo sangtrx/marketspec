@@ -36,6 +36,21 @@ fallback: unknown
 outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
 ```
 
+## Rule revision gate — before deploying a changed market contract
+
+Detect settlement-relevant changes in **typed** market contracts before they
+reach a trading agent or market operator. The diff runs offline:
+
+~~~bash
+marketspec diff examples/rule-before.json examples/rule-after.json
+# exit 1: threshold and official-source-field declaration changed
+~~~
+
+The tool reports canonical hashes and sorted path-level changes; exit codes
+are 0 for equivalent contracts, 1 for material changes, and 2 for invalid
+input or mismatched market identity. Examples are synthetic, not verified
+live venue rules. See [rule diff guide](docs/RULE-DIFF.md).
+
 ## CLI
 
 ```bash

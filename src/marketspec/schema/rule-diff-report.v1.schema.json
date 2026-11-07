@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MarketSpec typed contract revision report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_version",
+    "market_id",
+    "event_id",
+    "before_contract_hash",
+    "after_contract_hash",
+    "changed",
+    "settlement_relevant",
+    "changes"
+  ],
+  "properties": {
+    "report_version": {
+      "const": "1"
+    },
+    "market_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "before_contract_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "after_contract_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "settlement_relevant": {
+      "type": "boolean"
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "area",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "area": {
+            "type": "string",
+            "enum": [
+              "decision_boundary",
+              "source_binding",
+              "observation_window",
+              "observation_policy",
+              "finality_policy",
+              "outcome_policy",
+              "contract_semantics"
+            ]
+          },
+          "before": {},
+          "after": {}
+        }
+      }
+    },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "evidence_hash",
+        "status_changed",
+        "outcome_changed",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "classification": {
+          "type": "string",
+          "enum": [
+            "inconclusive",
+            "outcome_flip",
+            "resolution_detail_changed",
+            "same_outcome_on_fixture"
+          ]
+        },
+        "evidence_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status_changed": {
+          "type": "boolean"
+        },
+        "outcome_changed": {
+          "type": "boolean"
+        },
+        "before": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract_hash",
+            "evidence_hash",
+            "status",
+            "outcome",
+            "observed_value",
+            "reason",
+            "result_hash"
+          ],
+          "properties": {
+            "contract_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "evidence_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "unknown",
+                "invalid"
+              ]
+            },
+            "outcome": {
+              "type": "string"
+            },
+            "observed_value": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "result_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "after": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract_hash",
+            "evidence_hash",
+            "status",
+            "outcome",
+            "observed_value",
+            "reason",
+            "result_hash"
+          ],
+          "properties": {
+            "contract_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "evidence_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no",
+                "unknown",
+                "invalid"
+              ]
+            },
+            "outcome": {
+              "type": "string"
+            },
+            "observed_value": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "result_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

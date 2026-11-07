@@ -1,63 +1,123 @@
-# Contract revision diff — CI for typed settlement rules
+# Detect settlement rule changes before an agent relies on them
 
-MarketSpec compares **two already-typed contracts** identifying the same
-market and event. It reports each changed canonical settlement field and
-returns a nonzero exit code for changes.
+MarketSpec is an offline, deterministic contract compiler and evaluator for
+prediction-market settlement rules. This guide focuses on one practical task:
+**comparing two reviewed, typed contracts and replaying identical evidence
+through both versions**.
 
-## Two-minute demo — no API key or market access
+You don't need an exchange account, API credentials or a hosted service.
+
+## Two-minute runnable example
+
+From a fresh checkout:
 
 ~~~bash
 python -m pip install -e .
 marketspec diff examples/rule-before.json examples/rule-after.json
-echo "exit=$?"   # 1: settlement-relevant change
+# exit 1: threshold and source binding changed
+marketspec diff examples/rule-before.json examples/rule-after.json \
+  --evidence examples/rule-replay-evidence.json \
+  --output /tmp/marketspec-impact.json
+# exit 1: change detected; JSON saved to /tmp/marketspec-impact.json
 marketspec diff examples/rule-before.json examples/rule-before.json
-echo "exit=$?"   # 0: no change
+# exit 0: same canonical contract
 ~~~
 
-The sample data is **synthetic**, not official Kalshi/Polymarket rules.
-A pass does not independently establish that the input is a venue's binding
-contract.
+Every example here uses **synthetic** contracts and observations, not an actual
+Polymarket or Kalshi market rule. The input contract author remains responsible
+for checking the venue's authoritative rule text.
 
-## Output
+The combined change in the synthetic example updates the threshold from 100
+to 101 and the declared source field from `last_value` to
+`official_final_value`. With the included observations, the baseline
+evaluates YES and the candidate evaluates NO. This comparison demonstrates
+the **combined effect**; it does not causally attribute the outcome flip
+to either individual change.
 
-One deterministic JSON line:
+## Machine-readable contract change report
 
-- report_version, market_id, event_id
-- before_contract_hash and after_contract_hash (canonical SHA-256)
-- changed and settlement_relevant
-- changes: path-ordered array of {path, area, before, after} with
-  decision_boundary, source_binding, observation_window,
-  observation_policy, finality_policy and outcome_policy impact categories
+Without replay data:
 
-All v0.1 compiled fields can influence settlement semantics; there are no
-cosmetic-only fields. Canonically equal decimal strings and equivalent
-time offsets are considered unchanged.
+- `report_version`: `"1"`
+- `market_id` and `event_id`: both inputs must identify the same contract
+- `before_contract_hash` and `after_contract_hash`: SHA-256 of canonical JSON
+- `changed` and `settlement_relevant`: any v0.1 compiled change requires review
+- `changes`: sorted path-level changes with before/after values and impact area
 
-## CI integration
+With `--evidence`, `replay` additionally includes:
 
-Check in both a reviewed baseline and a candidate typed contract:
+- `evidence_hash`, identical in both evaluations
+- exact `before` and `after` evaluator receipts (status, outcome, observed
+  value, reason and content hashes)
+- `status_changed` and `outcome_changed`
+- `classification`:
+  - `outcome_flip`: both evaluations are decisive (YES/NO), but differ
+  - `same_outcome_on_fixture`: both decisive, same outcome and details
+  - `resolution_detail_changed`: both decisive, same outcome but reason or
+    observed value changed
+  - `inconclusive`: one or both evaluations are UNKNOWN/INVALID, including
+    cases where the candidate source lacks admissible evidence
+
+A single fixture with the same outcome is **not evidence that a rule change is
+safe** across all possible observations. `changed=true` remains the policy
+review gate regardless of the replay classification.
+
+The report schema is packaged at
+`marketspec/schema/rule-diff-report.v1.schema.json` and accessible via:
+
+~~~python
+from importlib import resources
+
+schema = resources.files("marketspec").joinpath(
+    "schema/rule-diff-report.v1.schema.json"
+).read_text(encoding="utf-8")
+~~~
+
+## Exit codes and portable CI
+
+- **0** — compiled contracts canonically equal
+- **1** — compiled rules changed and require review
+- **2** — malformed contract/evidence, different market/event identity, or I/O error
+
+All normal reports are JSON; errors go to stderr as structured JSON. To create
+an artifact using any local runner, Jenkins, GitLab CI or a pre-merge script:
 
 ~~~bash
-set +e
-marketspec diff baseline.json proposed.json > rule-diff.json
-status=$?
-set -e
-case "$status" in
-  0) echo "No typed rule changes" ;;
-  1) echo "Review settlement-relevant changes in rule-diff.json"; exit 1 ;;
-  2) echo "Invalid contract, identity mismatch or I/O failure"; exit 2 ;;
-  *) echo "Unexpected failure"; exit "$status" ;;
-esac
+MARKETSPEC_REPORT=rule-diff.json sh scripts/check-contract-revision.sh \
+  examples/rule-before.json examples/rule-after.json \
+  examples/rule-replay-evidence.json
 ~~~
 
-Exit codes: 0 unchanged, 1 changed, 2 invalid/error. A different market_id
-or event_id is a **different contract**, not a revision; comparison fails.
+This project deliberately does **not use GitHub Actions**. The shell
+wrapper merely preserves exit codes and writes a JSON artifact; it does not
+submit trades or change contract state.
 
-## Limits and safety
+## Agent integration (Python)
 
-This is an offline, deterministic comparison of **typed** contracts,
-not a natural-language rule parser, financial-risk score, payout oracle or
-legal interpretation. It does not fetch live venue rules or market data,
-prove the identity/authenticity of a source, place orders or handle funds.
-An incorrectly transcribed contract can still pass. Retain authentic source
-snapshots and obtain independent review before financial use.
+~~~python
+from marketspec import compile_text, diff_contracts, parse_evidence_text
+
+before = compile_text(before_yaml, format="yaml")
+after = compile_text(after_yaml, format="yaml")
+evidence = parse_evidence_text(evidence_json, format="json")
+
+report = diff_contracts(before, after, evidence)
+requires_review = report["changed"]
+if requires_review:
+    # Your application must obtain human approval before relying on a
+    # revised market contract. Do not auto-approve on one matching fixture.
+    pass
+~~~
+
+A fully runnable, read-only example lives in
+[`examples/agent_preflight.py`](../examples/agent_preflight.py).
+
+## Boundaries
+
+The checker compares **typed contract versions**; it does not interpret legal
+terms, ingest market prose, pull authenticated venue APIs, determine trading
+profitability or establish official source authenticity. Hashes prove stable
+serialization of supplied inputs, not who authored the contract. The offline
+evaluator cannot prove the exchange will settle identically. Keep verifiable
+rule-source snapshots and perform separate independent review for decisions
+that have financial consequences.

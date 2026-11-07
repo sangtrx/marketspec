@@ -7,9 +7,11 @@ natural-language market rules or assert that supplied terms are official.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from typing import Any
 
-from marketspec.models import CompiledContract
+from marketspec.evaluator import evaluate
+from marketspec.models import CompiledContract, Evidence
 
 
 class ContractComparisonError(ValueError):
@@ -35,19 +37,37 @@ _IMPACT_AREAS = {
 }
 
 
-def _diff_values(before: Any, after: Any, path: str, changes: list[dict[str, Any]]) -> None:
+def _diff_values(
+    before: Any, after: Any, path: str, changes: list[dict[str, Any]]
+) -> None:
     if isinstance(before, dict) and isinstance(after, dict):
         for key in sorted(set(before) | set(after)):
             child = f"{path}/{key}"
             if key not in before:
-                changes.append({"path": child, "area": _area(child), "before": None, "after": after[key]})
+                changes.append(
+                    {
+                        "path": child,
+                        "area": _area(child),
+                        "before": None,
+                        "after": after[key],
+                    }
+                )
             elif key not in after:
-                changes.append({"path": child, "area": _area(child), "before": before[key], "after": None})
+                changes.append(
+                    {
+                        "path": child,
+                        "area": _area(child),
+                        "before": before[key],
+                        "after": None,
+                    }
+                )
             else:
                 _diff_values(before[key], after[key], child, changes)
         return
     if before != after or type(before) is not type(after):
-        changes.append({"path": path, "area": _area(path), "before": before, "after": after})
+        changes.append(
+            {"path": path, "area": _area(path), "before": before, "after": after}
+        )
 
 
 def _area(path: str) -> str:
@@ -55,19 +75,27 @@ def _area(path: str) -> str:
     return _IMPACT_AREAS.get(group, "contract_semantics")
 
 
-def diff_contracts(before: CompiledContract, after: CompiledContract) -> dict[str, Any]:
-    """Compare canonical contracts. All v0.1 deltas can alter settlement semantics.
+def diff_contracts(
+    before: CompiledContract,
+    after: CompiledContract,
+    evidence: Iterable[Evidence] | None = None,
+) -> dict[str, Any]:
+    """Compare two versions of one contract, optionally replaying shared evidence.
 
-    These two contracts must identify the *same* market and event. Different
-    identities are not revisions and must be compared separately.
+    Input must already be typed, validated and attributable to a reviewed
+    source; this function does not verify the authenticity of venue rules.
+    A changed contract is always review-relevant, even if a fixture's
+    evaluated outcome happens to be the same.
     """
     if before.contract.market_id != after.contract.market_id:
         raise ContractComparisonError(
-            "contract_identity_mismatch", "market_id differs; these are different market contracts"
+            "contract_identity_mismatch",
+            "market_id differs; these are different market contracts",
         )
     if before.contract.event_id != after.contract.event_id:
         raise ContractComparisonError(
-            "contract_identity_mismatch", "event_id differs; these are different event contracts"
+            "contract_identity_mismatch",
+            "event_id differs; these are different event contracts",
         )
 
     before_value = json.loads(before.canonical_json)
@@ -79,7 +107,7 @@ def diff_contracts(before: CompiledContract, after: CompiledContract) -> dict[st
         raise ContractComparisonError(
             "comparison_invariant", "canonical hashes and path diff disagree"
         )
-    return {
+    report: dict[str, Any] = {
         "report_version": "1",
         "market_id": before.contract.market_id,
         "event_id": before.contract.event_id,
@@ -89,3 +117,39 @@ def diff_contracts(before: CompiledContract, after: CompiledContract) -> dict[st
         "settlement_relevant": changed,
         "changes": changes,
     }
+    if evidence is not None:
+        # Snapshot generators once: replay must use *exactly the same*
+        # evidence on both versions, not consume an iterator twice.
+        supplied = tuple(evidence)
+        baseline_result = evaluate(before, supplied)
+        candidate_result = evaluate(after, supplied)
+        if baseline_result.evidence_hash != candidate_result.evidence_hash:
+            raise ContractComparisonError(
+                "replay_invariant", "replay evidence differs between contract versions"
+            )
+
+        before_decisive = baseline_result.status in {"yes", "no"}
+        after_decisive = candidate_result.status in {"yes", "no"}
+        outcome_changed = baseline_result.outcome != candidate_result.outcome
+        if not before_decisive or not after_decisive:
+            classification = "inconclusive"
+        elif baseline_result.status != candidate_result.status or outcome_changed:
+            classification = "outcome_flip"
+        elif (
+            baseline_result.observed_value != candidate_result.observed_value
+            or baseline_result.reason != candidate_result.reason
+        ):
+            classification = "resolution_detail_changed"
+        else:
+            classification = "same_outcome_on_fixture"
+
+        report["replay"] = {
+            "classification": classification,
+            "evidence_hash": baseline_result.evidence_hash,
+            "status_changed": baseline_result.status != candidate_result.status,
+            "outcome_changed": outcome_changed,
+            "before": baseline_result.as_dict(),
+            "after": candidate_result.as_dict(),
+        }
+
+    return report

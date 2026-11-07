@@ -32,16 +32,24 @@ def example_contract() -> dict:
         "revision_policy": "final_only",
         "tie_behavior": "no",
         "fallback": "unknown",
-        "outcomes": {"yes": "YES", "no": "NO", "unknown": "UNKNOWN", "invalid": "INVALID"},
+        "outcomes": {
+            "yes": "YES",
+            "no": "NO",
+            "unknown": "UNKNOWN",
+            "invalid": "INVALID",
+        },
     }
 
 
 def invoke(*args: str) -> tuple[int, str, str]:
     stdout = io.StringIO()
     stderr = io.StringIO()
-    with patch.object(sys, "argv", ["marketspec", *args]):
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            code = main()
+    with (
+        patch.object(sys, "argv", ["marketspec", *args]),
+        contextlib.redirect_stdout(stdout),
+        contextlib.redirect_stderr(stderr),
+    ):
+        code = main()
     return code, stdout.getvalue(), stderr.getvalue()
 
 
@@ -85,9 +93,27 @@ class ContractDiffTest(unittest.TestCase):
 
     def test_all_settlement_semantics_are_reported(self) -> None:
         variants = [
-            ("predicate", "operator", "below", "/predicate/operator", "decision_boundary"),
-            ("window", "end", "2026-11-03T00:00:00Z", "/window/end", "observation_window"),
-            ("window", "timezone", "Asia/Ho_Chi_Minh", "/window/timezone", "observation_window"),
+            (
+                "predicate",
+                "operator",
+                "below",
+                "/predicate/operator",
+                "decision_boundary",
+            ),
+            (
+                "window",
+                "end",
+                "2026-11-03T00:00:00Z",
+                "/window/end",
+                "observation_window",
+            ),
+            (
+                "window",
+                "timezone",
+                "Asia/Ho_Chi_Minh",
+                "/window/timezone",
+                "observation_window",
+            ),
             ("source", "id", "updated-source", "/source/id", "source_binding"),
             (None, "aggregation", "max", "/aggregation", "observation_policy"),
             (None, "sampling", "latest", "/sampling", "observation_policy"),
@@ -102,7 +128,9 @@ class ContractDiffTest(unittest.TestCase):
                 changed = copy.deepcopy(baseline)
                 target = changed if section is None else changed[section]
                 target[key] = value
-                report = diff_contracts(compile_contract(baseline), compile_contract(changed))
+                report = diff_contracts(
+                    compile_contract(baseline), compile_contract(changed)
+                )
                 self.assertTrue(report["changed"])
                 self.assertEqual(len(report["changes"]), 1)
                 self.assertEqual(report["changes"][0]["path"], expected_path)
@@ -115,7 +143,9 @@ class ContractDiffTest(unittest.TestCase):
                 different = copy.deepcopy(baseline)
                 different[field] = "different"
                 with self.assertRaises(ContractComparisonError) as error:
-                    diff_contracts(compile_contract(baseline), compile_contract(different))
+                    diff_contracts(
+                        compile_contract(baseline), compile_contract(different)
+                    )
                 self.assertEqual(error.exception.code, "contract_identity_mismatch")
 
     def test_change_order_and_json_are_reproducible(self) -> None:
@@ -125,7 +155,9 @@ class ContractDiffTest(unittest.TestCase):
         variant["source"]["id"] = "another-feed"
         first = diff_contracts(compile_contract(baseline), compile_contract(variant))
         second = diff_contracts(compile_contract(baseline), compile_contract(variant))
-        self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
+        self.assertEqual(
+            json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True)
+        )
 
     def test_cli_reports_changes_and_exit_code_one(self) -> None:
         before = example_contract()
@@ -164,7 +196,9 @@ class ContractDiffTest(unittest.TestCase):
             code, output, stderr = invoke("diff", str(before), str(after))
         self.assertEqual(code, 2)
         self.assertFalse(output)
-        self.assertEqual(json.loads(stderr)["error"]["code"], "contract_identity_mismatch")
+        self.assertEqual(
+            json.loads(stderr)["error"]["code"], "contract_identity_mismatch"
+        )
 
     def test_cli_malformed_contract_returns_two(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

@@ -1,6 +1,6 @@
 # 5-minute quickstart
 
-This path uses only the public repository and the local deterministic core. It does not require ResolveOps, a network source, or private maintainer workflow data.
+This quickstart uses only the public repository and deterministic local code. No market-account login, API key, external service or GitHub Actions is required.
 
 ## 1. Install
 
@@ -107,4 +107,28 @@ marketspec conformance
 
 A successful run exits 0. The corpus at `src/marketspec/conformance/v0.1/golden.json` pins the expected contract/evidence/result identities for the documented cases.
 
-Next: read [EXAMPLES.md](EXAMPLES.md) for revision, conflict, missing-evidence, and source-adapter cases, then [ARCHITECTURE.md](ARCHITECTURE.md) for the semantics behind them.
+## 5. Check a settlement-rule revision
+
+Use the bundled **synthetic** before/after contract pair to see which typed
+fields changed and replay the same observations under both versions:
+
+~~~bash
+marketspec diff examples/rule-before.json examples/rule-after.json \
+  --evidence examples/rule-replay-evidence.json
+~~~
+
+This deliberately returns exit code **1** because the rules changed and the
+fixture demonstrates a YES-to-NO outcome flip. That is a request for operator
+review, not a software error. Compare a file with itself to get exit **0**:
+
+~~~bash
+marketspec diff examples/rule-before.json examples/rule-before.json
+~~~
+
+For portable local/Jenkins/GitLab execution with a JSON artifact, use
+[`scripts/check-contract-revision.sh`](../scripts/check-contract-revision.sh).
+A fully offline Python integration example is at
+[`examples/agent_preflight.py`](../examples/agent_preflight.py).
+The [contract change guide](RULE-DIFF.md) describes report format and limits.
+
+Next: read [EXAMPLES.md](EXAMPLES.md) for conformance, conflict, missing-evidence, and source-adapter cases, then [ARCHITECTURE.md](ARCHITECTURE.md) for the semantics behind them.

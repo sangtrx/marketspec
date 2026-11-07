@@ -25,7 +25,7 @@ Release notes must name the exact source SHA that passed all release gates. A br
 ## Release checklist
 
 1. Reread the owning GitHub Issue in `sangtrx/sang-workspace` and current repository source. GitHub Issues are workflow authority; repository source is code truth.
-2. Confirm the intended package version, `marketspec.__version__`, changelog entry, license metadata, project URLs, and install metadata all describe the same release.
+2. Confirm package distribution name `marketspec-oss` (the name `marketspec` on PyPI is already occupied by an unrelated project), intended version, `marketspec.__version__`, changelog entry, Apache-2.0 LICENSE + NOTICE inclusion, project URLs and install metadata all describe the same release.
 3. Make all release-prep source changes first, then freeze exactly one candidate SHA. Any later source mutation invalidates code-sensitive receipts and requires a new candidate SHA.
 4. On that exact candidate SHA, require all three independent gates:
    - fresh read-only ChatGPT Web review;

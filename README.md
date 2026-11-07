@@ -1,10 +1,37 @@
 # MarketSpec
 
-**Turn explicit event-market settlement rules and typed evidence into deterministic, replayable outcomes.**
+**Catch prediction-market settlement-rule changes before they silently change outcomes.**
 
-MarketSpec is an experimental open-source toolkit for compiling explicit event contracts into canonical identities, admitting typed evidence, and evaluating the same inputs to the same machine-checkable result.
+MarketSpec is an open-source, offline Python toolkit for trading systems,
+market makers, developers and AI agents that rely on event-market contracts.
+It compiles typed rules, compares revisions, and replays identical evidence
+to show whether a settlement decision changes.
 
-It is intentionally **not** a trading bot, exchange, custody system, or oracle that invents missing facts.
+**Why it matters:** a changed threshold, price source, cutoff time or tie
+policy may change an outcome even when the market's headline looks identical.
+
+No exchange account, API key, bot execution or hosted service is required.
+Contracts and examples in this repository are synthetic or explicitly sourced;
+MarketSpec does not invent an official rule from a market headline.
+
+## Try the rule-change demo
+
+From a clone of this repository (Python 3.11+):
+
+~~~bash
+python -m pip install -e .
+marketspec diff examples/rule-before.json examples/rule-after.json \
+  --evidence examples/rule-replay-evidence.json
+# exit 1: changed rules; demonstration replay changes YES to NO
+~~~
+
+The JSON report contains both contract hashes, changed field paths and a
+replay receipt showing the before/after status and admitted evidence hash.
+Use [the 2-minute guide](docs/RULE-DIFF.md) for plain JSON, CI integration
+and a read-only [AI-agent preflight example](examples/agent_preflight.py).
+
+MarketSpec is not a trading bot, broker, custody system or authoritative
+settlement oracle.
 
 ## v0.1 core
 
@@ -46,10 +73,11 @@ marketspec diff examples/rule-before.json examples/rule-after.json
 # exit 1: threshold and official-source-field declaration changed
 ~~~
 
-The tool reports canonical hashes and sorted path-level changes; exit codes
-are 0 for equivalent contracts, 1 for material changes, and 2 for invalid
-input or mismatched market identity. Examples are synthetic, not verified
-live venue rules. See [rule diff guide](docs/RULE-DIFF.md).
+The tool reports canonical hashes, exact changed paths and optional
+before/after outcome replay; it exits 0 for unchanged contracts, 1 for
+settlement-relevant changes, and 2 for invalid input. Examples are
+synthetic, not verified live venue rules. See
+[the rule diff guide](docs/RULE-DIFF.md).
 
 ## CLI
 
@@ -90,15 +118,21 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the contract/evidence model
 
 MarketSpec is pre-1.0. Compatibility expectations, changelog rules, exact-SHA release gates, and tag provenance are documented in `docs/RELEASING.md`. User-visible changes are recorded in `CHANGELOG.md`.
 
-No public package availability is implied by this repository alone; publication must be verified separately after a release is actually uploaded.
+The intended distribution name is `marketspec-oss` (the name `marketspec`
+on PyPI belongs to an unrelated publisher). The import and CLI remain
+`marketspec`. **No PyPI upload is claimed** until a public package release
+is independently verified.
 
 ## Contributing and security
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md). External contributors only need this public repository; private maintainer workflow data is not required. Community behavior is covered by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and security reports should follow [SECURITY.md](SECURITY.md).
 
-## Maintainers
+## Support and maintainers
 
-Internal workflow authority lives in `sangtrx/sang-workspace`; repository `main` is source truth. External users do not need the internal workflow to install, run, or evaluate MarketSpec.
+Please open feature requests, reproducible bugs and integration questions in
+[this repository's Issues](https://github.com/sangtrx/marketspec/issues).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local tests and fixture conventions.
+No private workspace or hosted service is required.
 
 ## License
 

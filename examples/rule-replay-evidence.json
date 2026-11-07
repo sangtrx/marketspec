@@ -1,0 +1,18 @@
+[
+  {
+    "source_id": "synthetic-demo-feed",
+    "field": "last_value",
+    "observed_at": "2026-11-01T12:00:00Z",
+    "value": "100.5",
+    "final": true,
+    "revision": 1
+  },
+  {
+    "source_id": "synthetic-demo-feed",
+    "field": "official_final_value",
+    "observed_at": "2026-11-01T12:00:00Z",
+    "value": "100.5",
+    "final": true,
+    "revision": 1
+  }
+]

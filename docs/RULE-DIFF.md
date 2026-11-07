@@ -51,7 +51,10 @@ With `--evidence`, `replay` additionally includes:
   value, reason and content hashes)
 - `status_changed` and `outcome_changed`
 - `classification`:
-  - `outcome_flip`: both evaluations are decisive (YES/NO), but differ
+  - `outcome_flip`: both evaluations are decisive but the logical result
+    changes from YES to NO or NO to YES
+  - `outcome_label_changed`: both are the same logical result, but the
+    output mapping/label changed (for example YES to SETTLED_YES)
   - `same_outcome_on_fixture`: both decisive, same outcome and details
   - `resolution_detail_changed`: both decisive, same outcome but reason or
     observed value changed

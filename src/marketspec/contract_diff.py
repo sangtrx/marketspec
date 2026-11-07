@@ -133,8 +133,10 @@ def diff_contracts(
         outcome_changed = baseline_result.outcome != candidate_result.outcome
         if not before_decisive or not after_decisive:
             classification = "inconclusive"
-        elif baseline_result.status != candidate_result.status or outcome_changed:
+        elif baseline_result.status != candidate_result.status:
             classification = "outcome_flip"
+        elif outcome_changed:
+            classification = "outcome_label_changed"
         elif (
             baseline_result.observed_value != candidate_result.observed_value
             or baseline_result.reason != candidate_result.reason

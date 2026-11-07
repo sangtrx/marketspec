@@ -72,6 +72,21 @@ class ReplayImpactTest(unittest.TestCase):
         )
         self.assertEqual(replay["evidence_hash"], replay["before"]["evidence_hash"])
 
+    def test_label_only_change_is_not_called_yes_no_flip(self) -> None:
+        before = example_contract()
+        after = copy.deepcopy(before)
+        after["outcomes"]["yes"] = "SETTLED_YES"
+        report = diff_contracts(
+            compile_contract(before), compile_contract(after), parse_evidence(evidence_rows())
+        )
+        replay = report["replay"]
+        self.assertEqual(replay["classification"], "outcome_label_changed")
+        self.assertFalse(replay["status_changed"])
+        self.assertTrue(replay["outcome_changed"])
+        self.assertEqual(replay["before"]["status"], "yes")
+        self.assertEqual(replay["after"]["status"], "yes")
+        self.assertEqual(replay["after"]["outcome"], "SETTLED_YES")
+
     def test_rule_change_but_fixture_outcome_unchanged(self) -> None:
         before = example_contract()
         after = copy.deepcopy(before)

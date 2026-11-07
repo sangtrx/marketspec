@@ -89,6 +89,7 @@
           "enum": [
             "inconclusive",
             "outcome_flip",
+          "outcome_label_changed",
             "resolution_detail_changed",
             "same_outcome_on_fixture"
           ]

@@ -29,7 +29,12 @@ def contract(**updates):
         "revision_policy": "final_only",
         "tie_behavior": "no",
         "fallback": "unknown",
-        "outcomes": {"yes": "YES", "no": "NO", "unknown": "UNKNOWN", "invalid": "INVALID"},
+        "outcomes": {
+            "yes": "YES",
+            "no": "NO",
+            "unknown": "UNKNOWN",
+            "invalid": "INVALID",
+        },
     }
     value.update(updates)
     return value
@@ -111,7 +116,10 @@ outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
         self.assertEqual(caught.exception.code, "binary_float")
 
     def test_threshold_schema_and_compiler_require_decimal_string(self):
-        schema_path = Path(__file__).resolve().parents[1] / "src/marketspec/schema/marketspec.schema.json"
+        schema_path = (
+            Path(__file__).resolve().parents[1]
+            / "src/marketspec/schema/marketspec.schema.json"
+        )
         schema = json.loads(schema_path.read_text())
         threshold_schema = schema["properties"]["predicate"]["properties"]["threshold"]
         self.assertEqual(threshold_schema["type"], "string")
@@ -138,10 +146,12 @@ outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
         self.assertEqual(caught.exception.code, "naive_datetime")
 
     def test_decimal_canonicalization_is_exact_and_context_independent(self):
-        raw = contract(predicate={
-            "operator": "above",
-            "threshold": "123456789012345678901234567890.1234500",
-        })
+        raw = contract(
+            predicate={
+                "operator": "above",
+                "threshold": "123456789012345678901234567890.1234500",
+            }
+        )
         baseline = compile_contract(raw)
         with localcontext() as context:
             context.prec = 6
@@ -159,40 +169,42 @@ outcomes: {yes: YES, no: NO, unknown: UNKNOWN, invalid: INVALID}
 class EvaluatorTest(unittest.TestCase):
     def test_bounded_final_source_observation_replays_identically(self):
         compiled = compile_contract(contract())
-        evidence = parse_evidence([
-            {
-                "source_id": "official-feed",
-                "field": "value",
-                "observed_at": "2026-09-19T12:00:00+00:00",
-                "value": "99",
-                "final": False,
-                "revision": 1,
-            },
-            {
-                "source_id": "official-feed",
-                "field": "value",
-                "observed_at": "2026-09-19T12:00:00+00:00",
-                "value": "101.0",
-                "final": True,
-                "revision": 2,
-            },
-            {
-                "source_id": "official-feed",
-                "field": "value",
-                "observed_at": "2026-09-21T12:00:00+00:00",
-                "value": "1000",
-                "final": True,
-                "revision": 1,
-            },
-            {
-                "source_id": "other-feed",
-                "field": "value",
-                "observed_at": "2026-09-19T13:00:00+00:00",
-                "value": "1000",
-                "final": True,
-                "revision": 1,
-            },
-        ])
+        evidence = parse_evidence(
+            [
+                {
+                    "source_id": "official-feed",
+                    "field": "value",
+                    "observed_at": "2026-09-19T12:00:00+00:00",
+                    "value": "99",
+                    "final": False,
+                    "revision": 1,
+                },
+                {
+                    "source_id": "official-feed",
+                    "field": "value",
+                    "observed_at": "2026-09-19T12:00:00+00:00",
+                    "value": "101.0",
+                    "final": True,
+                    "revision": 2,
+                },
+                {
+                    "source_id": "official-feed",
+                    "field": "value",
+                    "observed_at": "2026-09-21T12:00:00+00:00",
+                    "value": "1000",
+                    "final": True,
+                    "revision": 1,
+                },
+                {
+                    "source_id": "other-feed",
+                    "field": "value",
+                    "observed_at": "2026-09-19T13:00:00+00:00",
+                    "value": "1000",
+                    "final": True,
+                    "revision": 1,
+                },
+            ]
+        )
         first = evaluate(compiled, evidence)
         second = evaluate(compiled, evidence)
         self.assertEqual(first.status, "yes")
@@ -204,41 +216,49 @@ class EvaluatorTest(unittest.TestCase):
     def test_tie_and_insufficient_evidence_are_explicit(self):
         raw = contract(tie_behavior="insufficient")
         compiled = compile_contract(raw)
-        evidence = parse_evidence([{
-            "source_id": "official-feed",
-            "field": "value",
-            "observed_at": "2026-09-19T12:00:00+00:00",
-            "value": "100",
-            "final": True,
-            "revision": 1,
-        }])
+        evidence = parse_evidence(
+            [
+                {
+                    "source_id": "official-feed",
+                    "field": "value",
+                    "observed_at": "2026-09-19T12:00:00+00:00",
+                    "value": "100",
+                    "final": True,
+                    "revision": 1,
+                }
+            ]
+        )
         result = evaluate(compiled, evidence)
         self.assertEqual(result.status, "unknown")
         self.assertEqual(result.reason, "threshold_tie")
 
     def test_mean_is_exact_and_context_independent(self):
-        compiled = compile_contract(contract(
-            aggregation="mean",
-            predicate={"operator": "above", "threshold": "1.5"},
-        ))
-        evidence = parse_evidence([
-            {
-                "source_id": "official-feed",
-                "field": "value",
-                "observed_at": "2026-09-19T12:00:00+00:00",
-                "value": "1.111111111111111111111111111111",
-                "final": True,
-                "revision": 1,
-            },
-            {
-                "source_id": "official-feed",
-                "field": "value",
-                "observed_at": "2026-09-19T13:00:00+00:00",
-                "value": "1.888888888888888888888888888889",
-                "final": True,
-                "revision": 1,
-            },
-        ])
+        compiled = compile_contract(
+            contract(
+                aggregation="mean",
+                predicate={"operator": "above", "threshold": "1.5"},
+            )
+        )
+        evidence = parse_evidence(
+            [
+                {
+                    "source_id": "official-feed",
+                    "field": "value",
+                    "observed_at": "2026-09-19T12:00:00+00:00",
+                    "value": "1.111111111111111111111111111111",
+                    "final": True,
+                    "revision": 1,
+                },
+                {
+                    "source_id": "official-feed",
+                    "field": "value",
+                    "observed_at": "2026-09-19T13:00:00+00:00",
+                    "value": "1.888888888888888888888888888889",
+                    "final": True,
+                    "revision": 1,
+                },
+            ]
+        )
         baseline = evaluate(compiled, evidence)
         with localcontext() as context:
             context.prec = 4
@@ -250,21 +270,25 @@ class EvaluatorTest(unittest.TestCase):
         self.assertEqual(baseline.status, "no")
 
     def test_non_terminating_mean_fails_closed(self):
-        compiled = compile_contract(contract(
-            aggregation="mean",
-            predicate={"operator": "above", "threshold": "1"},
-        ))
-        evidence = parse_evidence([
-            {
-                "source_id": "official-feed",
-                "field": "value",
-                "observed_at": f"2026-09-19T{hour:02d}:00:00+00:00",
-                "value": value,
-                "final": True,
-                "revision": 1,
-            }
-            for hour, value in enumerate(("1", "2", "2"), start=10)
-        ])
+        compiled = compile_contract(
+            contract(
+                aggregation="mean",
+                predicate={"operator": "above", "threshold": "1"},
+            )
+        )
+        evidence = parse_evidence(
+            [
+                {
+                    "source_id": "official-feed",
+                    "field": "value",
+                    "observed_at": f"2026-09-19T{hour:02d}:00:00+00:00",
+                    "value": value,
+                    "final": True,
+                    "revision": 1,
+                }
+                for hour, value in enumerate(("1", "2", "2"), start=10)
+            ]
+        )
         result = evaluate(compiled, evidence)
         self.assertEqual(result.status, "unknown")
         self.assertEqual(result.reason, "non_terminating_mean")

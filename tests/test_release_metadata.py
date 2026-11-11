@@ -32,7 +32,10 @@ class ReleaseMetadataTest(unittest.TestCase):
         self.assertTrue(urls["Changelog"].endswith("/CHANGELOG.md"))
 
         keywords = set(project["keywords"])
-        self.assertTrue({"prediction-markets", "event-contracts", "settlement", "deterministic"} <= keywords)
+        self.assertTrue(
+            {"prediction-markets", "event-contracts", "settlement", "deterministic"}
+            <= keywords
+        )
 
     def test_release_docs_exist(self):
         changelog = (ROOT / "CHANGELOG.md").read_text()

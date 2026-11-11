@@ -90,7 +90,9 @@ def _failure(
     )
 
 
-def _require_official(provenance: str, prefix: str, identity: SourceIdentity) -> AdapterResult | None:
+def _require_official(
+    provenance: str, prefix: str, identity: SourceIdentity
+) -> AdapterResult | None:
     if provenance.startswith(prefix):
         return None
     return _failure(
@@ -117,7 +119,9 @@ class EcbReferenceRateXmlAdapter:
             raise ValueError("currency must be a three-letter code")
         self.currency = normalized
 
-    def parse(self, raw: bytes, *, retrieved_at: datetime, provenance: str) -> AdapterResult:
+    def parse(
+        self, raw: bytes, *, retrieved_at: datetime, provenance: str
+    ) -> AdapterResult:
         rejected = _require_official(provenance, self.OFFICIAL_PREFIX, self.identity)
         if rejected is not None:
             return rejected
@@ -150,7 +154,8 @@ class EcbReferenceRateXmlAdapter:
             (
                 child
                 for child in dated_cube
-                if _local_name(child.tag) == "Cube" and child.attrib.get("currency") == self.currency
+                if _local_name(child.tag) == "Cube"
+                and child.attrib.get("currency") == self.currency
             ),
             None,
         )
@@ -201,7 +206,9 @@ class NwsLatestTemperatureJsonAdapter:
         source_version="api.weather.gov observation JSON",
     )
 
-    def parse(self, raw: bytes, *, retrieved_at: datetime, provenance: str) -> AdapterResult:
+    def parse(
+        self, raw: bytes, *, retrieved_at: datetime, provenance: str
+    ) -> AdapterResult:
         rejected = _require_official(provenance, self.OFFICIAL_PREFIX, self.identity)
         if rejected is not None:
             return rejected

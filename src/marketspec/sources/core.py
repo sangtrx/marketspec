@@ -43,7 +43,11 @@ class SourceIdentity:
     source_version: str
 
     def __post_init__(self) -> None:
-        if not self.provider.strip() or not self.dataset.strip() or not self.source_version.strip():
+        if (
+            not self.provider.strip()
+            or not self.dataset.strip()
+            or not self.source_version.strip()
+        ):
             raise ValueError("source identity fields must be non-empty")
 
 
@@ -84,9 +88,13 @@ class SourceObservation:
         if not self.provenance.strip():
             raise ValueError("provenance must be non-empty")
         if not _SHA256_RE.fullmatch(self.schema_fingerprint):
-            raise ValueError("schema_fingerprint must be a lowercase SHA-256 hex digest")
+            raise ValueError(
+                "schema_fingerprint must be a lowercase SHA-256 hex digest"
+            )
         if not _SHA256_RE.fullmatch(self.raw_evidence_sha256):
-            raise ValueError("raw_evidence_sha256 must be a lowercase SHA-256 hex digest")
+            raise ValueError(
+                "raw_evidence_sha256 must be a lowercase SHA-256 hex digest"
+            )
 
 
 @dataclass(frozen=True)
@@ -96,7 +104,9 @@ class AdapterResult:
 
     def __post_init__(self) -> None:
         if (self.observation is None) == (self.failure is None):
-            raise ValueError("adapter result must contain exactly one of observation or failure")
+            raise ValueError(
+                "adapter result must contain exactly one of observation or failure"
+            )
 
 
 @dataclass(frozen=True)
@@ -111,7 +121,9 @@ class HealthPolicy:
         if self.expected_schema_fingerprint is not None and not _SHA256_RE.fullmatch(
             self.expected_schema_fingerprint
         ):
-            raise ValueError("expected_schema_fingerprint must be a lowercase SHA-256 hex digest")
+            raise ValueError(
+                "expected_schema_fingerprint must be a lowercase SHA-256 hex digest"
+            )
 
 
 def _utc(value: datetime) -> datetime:

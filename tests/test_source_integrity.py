@@ -186,6 +186,36 @@ class SourceIntegrityTest(unittest.TestCase):
                 self.assertIsNotNone(result.failure)
                 self.assertEqual(result.failure.kind, FailureKind.SEMANTIC)
 
+    def test_nws_rejects_non_celsius_temperature_units(self) -> None:
+        adapter = NwsLatestTemperatureJsonAdapter()
+        for unit in ("wmoUnit:degF", "wmoUnit:m", "wmoUnit:degC "):
+            with self.subTest(unit=unit):
+                raw = json.dumps(
+                    {
+                        "properties": {
+                            "timestamp": "2026-11-11T14:00:00Z",
+                            "temperature": {"value": 20, "unitCode": unit},
+                        }
+                    }
+                ).encode("utf-8")
+                result = adapter.parse(raw, retrieved_at=NOW, provenance=NWS_URL)
+                self.assertIsNone(result.observation)
+                self.assertIsNotNone(result.failure)
+                self.assertEqual(result.failure.kind, FailureKind.SEMANTIC)
+
+    def test_ecb_rejects_nonpositive_reference_rates(self) -> None:
+        adapter = EcbReferenceRateXmlAdapter("USD")
+        for rate in ("0", "-0.0", "-1.25"):
+            with self.subTest(rate=rate):
+                raw = (
+                    "<Cube><Cube time='2026-11-11'>"
+                    f"<Cube currency='USD' rate='{rate}'/></Cube></Cube>"
+                ).encode()
+                result = adapter.parse(raw, retrieved_at=NOW, provenance=ECB_URL)
+                self.assertIsNone(result.observation)
+                self.assertIsNotNone(result.failure)
+                self.assertEqual(result.failure.kind, FailureKind.SEMANTIC)
+
     def test_excessive_source_nesting_returns_typed_parse_failure(self) -> None:
         depth = 1050
         nws_raw = (

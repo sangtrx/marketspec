@@ -190,6 +190,8 @@ class EcbReferenceRateXmlAdapter:
             value = Decimal(quote.attrib["rate"])
             if not value.is_finite():
                 raise ValueError("non-finite ECB rate")
+            if value <= 0:
+                raise ValueError("ECB reference rate must be positive")
         except (ValueError, InvalidOperation) as exc:
             return _failure(
                 self.identity,
@@ -297,6 +299,13 @@ class NwsLatestTemperatureJsonAdapter:
                 kind=FailureKind.SEMANTIC,
                 provenance=provenance,
                 message="NWS temperature unitCode must be a non-empty string",
+            )
+        if unit != "wmoUnit:degC":
+            return _failure(
+                self.identity,
+                kind=FailureKind.SEMANTIC,
+                provenance=provenance,
+                message="NWS temperature unitCode must be wmoUnit:degC (no conversion)",
             )
         try:
             observed_at = datetime.fromisoformat(str(timestamp))

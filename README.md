@@ -92,7 +92,7 @@ For a fresh clone, follow the [5-minute quickstart](docs/QUICKSTART.md). The [wo
 
 The conformance command runs the bundled, versioned offline golden corpus. See `CONFORMANCE.md`; the JSON corpus is directly reusable by third-party implementations without ResolveOps.
 
-Evidence records are typed objects with `source_id`, `field`, timezone-aware `observed_at`, decimal-string/integer `value`, boolean `final`, and non-negative integer `revision`.
+Evidence records are typed objects with `source_id`, `field`, timezone-aware `observed_at`, decimal-string/integer `value`, boolean `final`, and non-negative integer `revision`. Numeric evidence must be unambiguous base-10; YAML legacy octal, hex and sexagesimal forms fail closed rather than changing the result. See the [numeric input limits](docs/RULE-DIFF.md#numeric-input-safety) before using external data.
 
 ## Design principles
 

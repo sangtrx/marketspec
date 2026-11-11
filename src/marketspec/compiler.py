@@ -42,6 +42,38 @@ class _DecimalLoader(yaml.SafeLoader):
     pass
 
 
+# Keep inputs bounded before decimal->fixed-point expansion or exact-mean arithmetic.
+_MAX_DECIMAL_DIGITS = 256
+_MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
+_DECIMAL_LITERAL_RE = re.compile(
+    r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$"
+)
+_INTEGER_LITERAL_RE = re.compile(r"^-?(?:0|[1-9][0-9]*)$")
+
+
+def _bounded_decimal(value: Decimal, path: str) -> Decimal:
+    if not value.is_finite():
+        raise CompileError("invalid_decimal", path, "decimal must be finite")
+    representation = value.as_tuple()
+    digits, exponent = representation.digits, representation.exponent
+    if (
+        len(digits) > _MAX_DECIMAL_DIGITS
+        or abs(exponent) > _MAX_DECIMAL_DIGITS
+        or len(digits) + max(exponent, 0) > _MAX_DECIMAL_DIGITS
+    ):
+        raise CompileError("decimal_range", path, "decimal exceeds supported 256-digit range")
+    return value
+
+
+def _parse_decimal_literal(raw: str, path: str) -> Decimal:
+    if len(raw) > _MAX_DECIMAL_DIGITS or not _DECIMAL_LITERAL_RE.fullmatch(raw):
+        raise CompileError("decimal_representation", path, "expected a bounded base-10 decimal")
+    try:
+        return _bounded_decimal(Decimal(raw), path)
+    except InvalidOperation as exc:
+        raise CompileError("invalid_decimal", path, "invalid decimal") from exc
+
+
 # PyYAML defaults to YAML 1.1 booleans, where yes/no become True/False.
 # MarketSpec follows YAML 1.2-style booleans so outcome names remain strings.
 _DecimalLoader.yaml_implicit_resolvers = {
@@ -59,11 +91,18 @@ _DecimalLoader.add_implicit_resolver(
 
 
 def _yaml_decimal(loader: yaml.SafeLoader, node: yaml.Node) -> Decimal:
-    raw = loader.construct_scalar(node).replace("_", "")
-    try:
-        return Decimal(raw)
-    except InvalidOperation as exc:
-        raise CompileError("invalid_decimal", "$", f"invalid YAML decimal {raw!r}") from exc
+    return _parse_decimal_literal(loader.construct_scalar(node), "$")
+
+
+def _yaml_integer(loader: yaml.SafeLoader, node: yaml.Node) -> int:
+    raw = loader.construct_scalar(node)
+    if len(raw) > _MAX_DECIMAL_DIGITS or not _INTEGER_LITERAL_RE.fullmatch(raw):
+        raise CompileError(
+            "decimal_representation",
+            "$",
+            "YAML integers must be unambiguous base-10 (no octal, hex, or sexagesimal)",
+        )
+    return int(raw, 10)
 
 
 def _yaml_timestamp(loader: yaml.SafeLoader, node: yaml.Node) -> str:
@@ -71,11 +110,18 @@ def _yaml_timestamp(loader: yaml.SafeLoader, node: yaml.Node) -> str:
 
 
 _DecimalLoader.add_constructor("tag:yaml.org,2002:float", _yaml_decimal)
+_DecimalLoader.add_constructor("tag:yaml.org,2002:int", _yaml_integer)
 _DecimalLoader.add_constructor("tag:yaml.org,2002:timestamp", _yaml_timestamp)
 
 
 def _reject_constant(raw: str) -> None:
     raise CompileError("invalid_number", "$", f"non-finite number {raw!r} is not allowed")
+
+
+def _json_integer(raw: str) -> int:
+    if len(raw) > _MAX_DECIMAL_DIGITS:
+        raise CompileError("decimal_range", "$", "integer exceeds supported limit")
+    return int(raw, 10)
 
 
 def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -108,12 +154,15 @@ _DecimalLoader.add_constructor(
 
 
 def load_document(text: str, *, format: str | None = None) -> Any:
+    if len(text.encode("utf-8")) > _MAX_DOCUMENT_BYTES:
+        raise CompileError("document_too_large", "$", "document exceeds 8 MiB")
     fmt = (format or ("json" if text.lstrip().startswith(("{", "[")) else "yaml")).lower()
     try:
         if fmt == "json":
             return json.loads(
                 text,
-                parse_float=Decimal,
+                parse_float=lambda raw: _parse_decimal_literal(raw, "$"),
+                parse_int=_json_integer,
                 parse_constant=_reject_constant,
                 object_pairs_hook=_unique_json_object,
             )
@@ -163,13 +212,14 @@ def _decimal(value: Any, path: str) -> Decimal:
         raise CompileError("binary_float", path, "binary floating-point settlement values are not allowed")
     if isinstance(value, bool) or not isinstance(value, (str, int, Decimal)):
         raise CompileError("type_error", path, "expected a decimal string or integer")
-    try:
-        result = Decimal(value) if not isinstance(value, Decimal) else value
-    except InvalidOperation as exc:
-        raise CompileError("invalid_decimal", path, "invalid decimal value") from exc
-    if not result.is_finite():
-        raise CompileError("invalid_decimal", path, "decimal must be finite")
-    return result
+    if isinstance(value, str):
+        return _parse_decimal_literal(value, path)
+    if isinstance(value, int) and (
+        value.bit_length() > _MAX_DECIMAL_DIGITS * 4
+        or len(str(value)) > _MAX_DECIMAL_DIGITS
+    ):
+        raise CompileError("decimal_range", path, "decimal exceeds supported limit")
+    return _bounded_decimal(Decimal(value), path)
 
 _CONTRACT_DECIMAL_RE = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
 
@@ -183,10 +233,7 @@ def _contract_decimal(value: Any, path: str) -> Decimal:
             path,
             "expected a decimal string such as '100' or '100.5'",
         )
-    result = Decimal(value)
-    if not result.is_finite():
-        raise CompileError("invalid_decimal", path, "decimal must be finite")
-    return result
+    return _parse_decimal_literal(value, path)
 
 
 def _datetime(value: Any, path: str) -> datetime:
@@ -214,6 +261,9 @@ def _timezone(value: Any, path: str) -> str:
 
 
 def _decimal_text(value: Decimal) -> str:
+    _bounded_decimal(value, "$.decimal")
+    if value.is_zero():
+        return "0"
     text = format(value, "f")
     if "." in text:
         text = text.rstrip("0").rstrip(".")

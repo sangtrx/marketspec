@@ -14,6 +14,8 @@ MarketSpec has not yet made a public tagged/package release. Until the first rel
 - Distribution metadata `marketspec-oss` to avoid an unrelated package's existing PyPI name.
 - Synthetic before/after rule examples and deterministic diff regression coverage.
 - Initial v0.1 typed contract/compiler/evaluator work.
+- Fail-closed parsing of ambiguous YAML numeric forms, bounded decimal magnitude and document size, and cross-format evidence parity tests.
+- Include referenced test fixtures in the source distribution for fully reproducible offline tests.
 - Explicit pre-1.0 compatibility and exact-SHA release policy.
 - Package discoverability metadata and project links.
 

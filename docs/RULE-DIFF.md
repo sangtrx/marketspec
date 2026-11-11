@@ -90,7 +90,8 @@ or decimal number, with an optional scientific exponent when finite and bounded.
 A contract predicate `threshold` must still be a **quoted plain decimal
 string** without an exponent. Quote identifiers if they look numeric.
 
-The offline parser limits each document to 8 MiB; numeric tokens, scale and
+The CLI limits each file read and the text parser limits each document to 8 MiB;
+numeric tokens, scale and
 rendered precision are limited to 256 decimal digits. Out-of-range numbers
 and malformed numeric syntax return structured errors (CLI exit 2), never a
 YES/NO settlement decision. The limits prevent unbounded decimal expansion

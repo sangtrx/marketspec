@@ -14,7 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
-from test_contract_diff import example_contract
+from test_contract_diff import example_contract, invoke
 
 from marketspec.cli import main
 from marketspec.compiler import (
@@ -174,6 +174,45 @@ class PackagingAndCliSafetyTest(unittest.TestCase):
         )
         self.assertTrue(list((root / "tests/fixtures").glob("*.json")))
         self.assertTrue(list((root / "tests/fixtures").glob("*.xml")))
+
+    def test_all_cli_input_paths_reject_oversized_files_before_decode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            valid = root / "valid.json"
+            huge = root / "huge.json"
+            valid.write_text(json.dumps(example_contract()), encoding="utf-8")
+            huge.write_bytes(b" " * (8 * 1024 * 1024 + 1))
+            commands = (
+                ("compile", str(huge)),
+                ("evaluate", str(valid), str(huge)),
+                ("diff", str(valid), str(huge)),
+            )
+            with patch(
+                "pathlib.Path.read_text",
+                side_effect=AssertionError("unbounded Path.read_text called"),
+            ):
+                for command in commands:
+                    with self.subTest(command=command[0]):
+                        code, stdout, stderr = invoke(*command)
+                        self.assertEqual(code, 2)
+                        self.assertFalse(stdout)
+                        self.assertEqual(
+                            json.loads(stderr)["error"]["code"], "document_too_large"
+                        )
+                        self.assertNotIn("Traceback", stderr)
+
+    def test_cli_bad_utf8_is_typed_parse_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            valid = root / "valid.json"
+            invalid = root / "bad.yaml"
+            valid.write_text(json.dumps(example_contract()), encoding="utf-8")
+            invalid.write_bytes(bytes([0xFF]))
+            code, stdout, stderr = invoke("diff", str(valid), str(invalid))
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertEqual(json.loads(stderr)["error"]["code"], "parse_error")
+            self.assertNotIn("Traceback", stderr)
 
     def test_malformed_yaml_cli_returns_error_not_rule_change(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

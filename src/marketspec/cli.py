@@ -9,7 +9,12 @@ import tempfile
 from pathlib import Path
 
 from marketspec import __version__
-from marketspec.compiler import CompileError, compile_text, parse_evidence_text
+from marketspec.compiler import (
+    MAX_DOCUMENT_BYTES,
+    CompileError,
+    compile_text,
+    parse_evidence_text,
+)
 from marketspec.conformance_runner import run_corpus
 from marketspec.contract_diff import ContractComparisonError, diff_contracts
 from marketspec.evaluator import evaluate
@@ -18,6 +23,18 @@ from marketspec.evaluator import evaluate
 def _format(path: Path) -> str:
     suffix = path.suffix.lower()
     return "json" if suffix == ".json" else "yaml"
+
+
+def _read_input(path: Path) -> str:
+    """Bound file I/O before parsing; never allocate an unlimited input file."""
+    with path.open("rb") as handle:
+        data = handle.read(MAX_DOCUMENT_BYTES + 1)
+    if len(data) > MAX_DOCUMENT_BYTES:
+        raise CompileError("document_too_large", "$", "document exceeds 8 MiB")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CompileError("parse_error", "$", "input document must be UTF-8") from exc
 
 
 def _check_output_path(output: Path, inputs: list[Path]) -> None:
@@ -122,19 +139,15 @@ def main() -> int:
 
         if args.command == "diff":
             before_path, after_path = Path(args.before), Path(args.after)
-            before = compile_text(
-                before_path.read_text(encoding="utf-8"), format=_format(before_path)
-            )
-            after = compile_text(
-                after_path.read_text(encoding="utf-8"), format=_format(after_path)
-            )
+            before = compile_text(_read_input(before_path), format=_format(before_path))
+            after = compile_text(_read_input(after_path), format=_format(after_path))
             evidence = None
             input_paths = [before_path, after_path]
             if args.evidence is not None:
                 evidence_path = Path(args.evidence)
                 input_paths.append(evidence_path)
                 evidence = parse_evidence_text(
-                    evidence_path.read_text(encoding="utf-8"),
+                    _read_input(evidence_path),
                     format=_format(evidence_path),
                 )
             output_path = Path(args.output) if args.output is not None else None
@@ -151,7 +164,7 @@ def main() -> int:
 
         contract_path = Path(args.contract)
         compiled = compile_text(
-            contract_path.read_text(), format=_format(contract_path)
+            _read_input(contract_path), format=_format(contract_path)
         )
         if args.command == "compile":
             print(
@@ -168,7 +181,7 @@ def main() -> int:
 
         evidence_path = Path(args.evidence)
         evidence = parse_evidence_text(
-            evidence_path.read_text(), format=_format(evidence_path)
+            _read_input(evidence_path), format=_format(evidence_path)
         )
         print(
             json.dumps(

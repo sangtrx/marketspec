@@ -44,7 +44,7 @@ class _DecimalLoader(yaml.SafeLoader):
 
 # Keep inputs bounded before decimal->fixed-point expansion or exact-mean arithmetic.
 _MAX_DECIMAL_DIGITS = 256
-_MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
+MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
 _DECIMAL_LITERAL_RE = re.compile(
     r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$"
 )
@@ -164,7 +164,7 @@ _DecimalLoader.add_constructor(
 
 
 def load_document(text: str, *, format: str | None = None) -> Any:
-    if len(text.encode("utf-8")) > _MAX_DOCUMENT_BYTES:
+    if len(text.encode("utf-8")) > MAX_DOCUMENT_BYTES:
         raise CompileError("document_too_large", "$", "document exceeds 8 MiB")
     fmt = (
         format or ("json" if text.lstrip().startswith(("{", "[")) else "yaml")

@@ -234,6 +234,33 @@ class SourceIntegrityTest(unittest.TestCase):
                 self.assertIsNotNone(result.failure)
                 self.assertEqual(result.failure.kind, FailureKind.PARSE)
 
+    def test_source_observation_decimal_range_matches_evaluator(self) -> None:
+        old = valid_observation()
+        for text in ("1E+256", "1E-257", "9" * 257):
+            with self.subTest(value=text), self.assertRaises(ValueError):
+                replace(old, value=Decimal(text))
+        self.assertEqual(replace(old, value=Decimal("1E+255")).value, Decimal("1E+255"))
+
+    def test_ecb_and_nws_reject_unsafe_numeric_exponents(self) -> None:
+        for text in ("1e1000000000", "1e-1000000000"):
+            ecb_raw = (
+                "<Cube><Cube time='2026-11-11'>"
+                f"<Cube currency='USD' rate='{text}'/></Cube></Cube>"
+            ).encode()
+            nws_raw = (
+                '{"properties":{"timestamp":"2026-11-11T14:00:00Z",'
+                '"temperature":{"unitCode":"wmoUnit:degC","value":' + text + "}}}"
+            ).encode()
+            for label, adapter, raw, url in (
+                ("ECB", EcbReferenceRateXmlAdapter(), ecb_raw, ECB_URL),
+                ("NWS", NwsLatestTemperatureJsonAdapter(), nws_raw, NWS_URL),
+            ):
+                with self.subTest(source=label, number=text):
+                    result = adapter.parse(raw, retrieved_at=NOW, provenance=url)
+                    self.assertIsNone(result.observation)
+                    self.assertIsNotNone(result.failure)
+                    self.assertEqual(result.failure.kind, FailureKind.SEMANTIC)
+
 
 if __name__ == "__main__":
     unittest.main()

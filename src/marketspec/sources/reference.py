@@ -208,22 +208,30 @@ class EcbReferenceRateXmlAdapter:
                 message="ECB XML nesting exceeds supported limit",
             )
 
-        return AdapterResult(
-            observation=SourceObservation(
-                identity=self.identity,
-                retrieved_at=retrieved_at,
-                observed_at=published_at,
-                published_at=published_at,
-                value=value,
-                unit=f"{self.currency}/EUR",
-                provenance=provenance,
-                finality=Finality.FINAL,
-                revision_id=dated_cube.attrib["time"],
-                revision_pending=False,
-                schema_fingerprint=schema_fingerprint,
-                raw_evidence_sha256=_sha256(raw),
+        try:
+            return AdapterResult(
+                observation=SourceObservation(
+                    identity=self.identity,
+                    retrieved_at=retrieved_at,
+                    observed_at=published_at,
+                    published_at=published_at,
+                    value=value,
+                    unit=f"{self.currency}/EUR",
+                    provenance=provenance,
+                    finality=Finality.FINAL,
+                    revision_id=dated_cube.attrib["time"],
+                    revision_pending=False,
+                    schema_fingerprint=schema_fingerprint,
+                    raw_evidence_sha256=_sha256(raw),
+                )
             )
-        )
+        except (TypeError, ValueError) as exc:
+            return _failure(
+                self.identity,
+                kind=FailureKind.SEMANTIC,
+                provenance=provenance,
+                message=f"invalid ECB observation: {exc}",
+            )
 
 
 class NwsLatestTemperatureJsonAdapter:
@@ -315,19 +323,27 @@ class NwsLatestTemperatureJsonAdapter:
                 message="NWS JSON nesting exceeds supported limit",
             )
 
-        return AdapterResult(
-            observation=SourceObservation(
-                identity=self.identity,
-                retrieved_at=retrieved_at,
-                observed_at=observed_at,
-                published_at=observed_at,
-                value=value,
-                unit=unit,
-                provenance=provenance,
-                finality=Finality.FINAL,
-                revision_id=str(timestamp),
-                revision_pending=False,
-                schema_fingerprint=schema_fingerprint,
-                raw_evidence_sha256=_sha256(raw),
+        try:
+            return AdapterResult(
+                observation=SourceObservation(
+                    identity=self.identity,
+                    retrieved_at=retrieved_at,
+                    observed_at=observed_at,
+                    published_at=observed_at,
+                    value=value,
+                    unit=unit,
+                    provenance=provenance,
+                    finality=Finality.FINAL,
+                    revision_id=str(timestamp),
+                    revision_pending=False,
+                    schema_fingerprint=schema_fingerprint,
+                    raw_evidence_sha256=_sha256(raw),
+                )
             )
-        )
+        except (TypeError, ValueError) as exc:
+            return _failure(
+                self.identity,
+                kind=FailureKind.SEMANTIC,
+                provenance=provenance,
+                message=f"invalid NWS observation: {exc}",
+            )

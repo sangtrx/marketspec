@@ -85,6 +85,10 @@ class SourceObservation:
                 raise ValueError(f"{field_name} must be timezone-aware")
         if self.retrieved_at < self.published_at:
             raise ValueError("retrieved_at cannot precede published_at")
+        if not isinstance(self.value, (Decimal, str, bool)):
+            raise TypeError("observation value must be decimal, string or boolean")
+        if isinstance(self.value, Decimal) and not self.value.is_finite():
+            raise ValueError("observation decimal must be finite")
         if not self.provenance.strip():
             raise ValueError("provenance must be non-empty")
         if not _SHA256_RE.fullmatch(self.schema_fingerprint):
@@ -151,6 +155,12 @@ def assess_health(
 
     if conflicting:
         return HealthStatus.CONFLICT
+    # A source observation cannot be trusted as-of a time before it existed.
+    if any(
+        _utc(getattr(observation, field_name)) > current
+        for field_name in ("observed_at", "published_at", "retrieved_at")
+    ):
+        return HealthStatus.UNKNOWN
     if (
         policy.expected_schema_fingerprint is not None
         and observation.schema_fingerprint != policy.expected_schema_fingerprint

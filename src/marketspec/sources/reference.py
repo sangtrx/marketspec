@@ -24,6 +24,10 @@ def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _reject_nonfinite_json_constant(token: str) -> None:
+    raise ValueError(f"non-finite JSON number {token!r}")
+
+
 def _json_shape(value: Any, path: str = "$") -> list[str]:
     if isinstance(value, dict):
         rows = [f"{path}:object"]
@@ -40,7 +44,7 @@ def _json_shape(value: Any, path: str = "$") -> list[str]:
         kind = "null"
     elif isinstance(value, bool):
         kind = "bool"
-    elif isinstance(value, (int, float)):
+    elif isinstance(value, (int, float, Decimal)):
         kind = "number"
     elif isinstance(value, str):
         kind = "string"
@@ -170,6 +174,8 @@ class EcbReferenceRateXmlAdapter:
             published_date = date.fromisoformat(dated_cube.attrib["time"])
             published_at = datetime.combine(published_date, time.min, tzinfo=UTC)
             value = Decimal(quote.attrib["rate"])
+            if not value.is_finite():
+                raise ValueError("non-finite ECB rate")
         except (ValueError, InvalidOperation) as exc:
             return _failure(
                 self.identity,
@@ -213,8 +219,12 @@ class NwsLatestTemperatureJsonAdapter:
         if rejected is not None:
             return rejected
         try:
-            document = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, JSONDecodeError) as exc:
+            document = json.loads(
+                raw.decode("utf-8"),
+                parse_float=Decimal,
+                parse_constant=_reject_nonfinite_json_constant,
+            )
+        except (UnicodeDecodeError, JSONDecodeError, ValueError) as exc:
             return _failure(
                 self.identity,
                 kind=FailureKind.PARSE,
@@ -246,6 +256,8 @@ class NwsLatestTemperatureJsonAdapter:
             if observed_at.tzinfo is None or observed_at.utcoffset() is None:
                 raise ValueError("timestamp is naive")
             value = Decimal(str(raw_value))
+            if not value.is_finite():
+                raise ValueError("non-finite NWS temperature")
         except (ValueError, InvalidOperation) as exc:
             return _failure(
                 self.identity,

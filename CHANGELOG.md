@@ -16,6 +16,7 @@ MarketSpec has not yet made a public tagged/package release. Until the first rel
 - Initial v0.1 typed contract/compiler/evaluator work.
 - Fail-closed parsing of ambiguous YAML numeric forms, bounded decimal magnitude and document size, and cross-format evidence parity tests.
 - Bounded UTF-8 CLI file reads across compile, evaluate and diff to prevent unbounded input allocation.
+- Fail-closed source health for future-dated timestamps and nonfinite measurements; reference NWS numeric JSON is parsed as exact decimals.
 - Include referenced test fixtures in the source distribution for fully reproducible offline tests.
 - Explicit pre-1.0 compatibility and exact-SHA release policy.
 - Package discoverability metadata and project links.

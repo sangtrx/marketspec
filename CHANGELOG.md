@@ -18,6 +18,7 @@ MarketSpec has not yet made a public tagged/package release. Until the first rel
 - Bounded UTF-8 CLI file reads across compile, evaluate and diff to prevent unbounded input allocation.
 - Fail-closed source health for future-dated or impossible timestamps and nonfinite measurements; reference NWS numeric JSON is parsed as exact decimals.
 - Reject ambiguous ECB XML duplicate dated/selected quote records, duplicate NWS JSON keys, and missing or invalid NWS temperature units.
+- Bound reference source payloads to 8 MiB and report nested JSON/XML parser/schema errors without uncaught recursion tracebacks.
 - Include referenced test fixtures in the source distribution for fully reproducible offline tests.
 - Explicit pre-1.0 compatibility and exact-SHA release policy.
 - Package discoverability metadata and project links.

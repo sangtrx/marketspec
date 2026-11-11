@@ -19,6 +19,8 @@ from marketspec.sources.core import (
     SourceObservation,
 )
 
+MAX_SOURCE_PAYLOAD_BYTES = 8 * 1024 * 1024
+
 
 def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
@@ -138,9 +140,16 @@ class EcbReferenceRateXmlAdapter:
         rejected = _require_official(provenance, self.OFFICIAL_PREFIX, self.identity)
         if rejected is not None:
             return rejected
+        if len(raw) > MAX_SOURCE_PAYLOAD_BYTES:
+            return _failure(
+                self.identity,
+                kind=FailureKind.PARSE,
+                provenance=provenance,
+                message="source payload exceeds 8 MiB",
+            )
         try:
             root = ElementTree.fromstring(raw)
-        except ElementTree.ParseError as exc:
+        except (ElementTree.ParseError, RecursionError) as exc:
             return _failure(
                 self.identity,
                 kind=FailureKind.PARSE,
@@ -189,6 +198,16 @@ class EcbReferenceRateXmlAdapter:
                 message=f"ECB date/rate is invalid: {exc}",
             )
 
+        try:
+            schema_fingerprint = _xml_schema_fingerprint(root)
+        except RecursionError:
+            return _failure(
+                self.identity,
+                kind=FailureKind.PARSE,
+                provenance=provenance,
+                message="ECB XML nesting exceeds supported limit",
+            )
+
         return AdapterResult(
             observation=SourceObservation(
                 identity=self.identity,
@@ -201,7 +220,7 @@ class EcbReferenceRateXmlAdapter:
                 finality=Finality.FINAL,
                 revision_id=dated_cube.attrib["time"],
                 revision_pending=False,
-                schema_fingerprint=_xml_schema_fingerprint(root),
+                schema_fingerprint=schema_fingerprint,
                 raw_evidence_sha256=_sha256(raw),
             )
         )
@@ -223,6 +242,13 @@ class NwsLatestTemperatureJsonAdapter:
         rejected = _require_official(provenance, self.OFFICIAL_PREFIX, self.identity)
         if rejected is not None:
             return rejected
+        if len(raw) > MAX_SOURCE_PAYLOAD_BYTES:
+            return _failure(
+                self.identity,
+                kind=FailureKind.PARSE,
+                provenance=provenance,
+                message="source payload exceeds 8 MiB",
+            )
         try:
             document = json.loads(
                 raw.decode("utf-8"),
@@ -230,7 +256,7 @@ class NwsLatestTemperatureJsonAdapter:
                 parse_constant=_reject_nonfinite_json_constant,
                 object_pairs_hook=_unique_json_object,
             )
-        except (UnicodeDecodeError, JSONDecodeError, ValueError) as exc:
+        except (UnicodeDecodeError, JSONDecodeError, ValueError, RecursionError) as exc:
             return _failure(
                 self.identity,
                 kind=FailureKind.PARSE,
@@ -279,6 +305,16 @@ class NwsLatestTemperatureJsonAdapter:
                 message=f"NWS timestamp/temperature is invalid: {exc}",
             )
 
+        try:
+            schema_fingerprint = _json_schema_fingerprint(document)
+        except RecursionError:
+            return _failure(
+                self.identity,
+                kind=FailureKind.PARSE,
+                provenance=provenance,
+                message="NWS JSON nesting exceeds supported limit",
+            )
+
         return AdapterResult(
             observation=SourceObservation(
                 identity=self.identity,
@@ -291,7 +327,7 @@ class NwsLatestTemperatureJsonAdapter:
                 finality=Finality.FINAL,
                 revision_id=str(timestamp),
                 revision_pending=False,
-                schema_fingerprint=_json_schema_fingerprint(document),
+                schema_fingerprint=schema_fingerprint,
                 raw_evidence_sha256=_sha256(raw),
             )
         )

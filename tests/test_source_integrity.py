@@ -186,6 +186,54 @@ class SourceIntegrityTest(unittest.TestCase):
                 self.assertIsNotNone(result.failure)
                 self.assertEqual(result.failure.kind, FailureKind.SEMANTIC)
 
+    def test_excessive_source_nesting_returns_typed_parse_failure(self) -> None:
+        depth = 1050
+        nws_raw = (
+            b'{"properties":{"timestamp":"2026-11-11T14:00:00Z",'
+            b'"temperature":{"value":25,"unitCode":"wmoUnit:degC"}},'
+            b'"extra":' + b"[" * depth + b"0" + b"]" * depth + b"}"
+        )
+        ecb_raw = (
+            b"<root><Cube time='2026-11-11'>"
+            b"<Cube currency='USD' rate='1.2'/></Cube>"
+            + b"<extra>" * depth
+            + b"</extra>" * depth
+            + b"</root>"
+        )
+        for label, adapter, raw, provenance in (
+            ("NWS", NwsLatestTemperatureJsonAdapter(), nws_raw, NWS_URL),
+            ("ECB", EcbReferenceRateXmlAdapter(), ecb_raw, ECB_URL),
+        ):
+            with self.subTest(source=label):
+                result = adapter.parse(raw, retrieved_at=NOW, provenance=provenance)
+                self.assertIsNone(result.observation)
+                self.assertIsNotNone(result.failure)
+                self.assertEqual(result.failure.kind, FailureKind.PARSE)
+
+    def test_source_adapters_cap_input_bytes_before_parsing(self) -> None:
+        padding = b" " * (8 * 1024 * 1024 + 1)
+        for label, adapter, raw, provenance in (
+            (
+                "NWS",
+                NwsLatestTemperatureJsonAdapter(),
+                b'{"properties":{"timestamp":"2026-11-11T14:00:00Z",'
+                b'"temperature":{"value":25,"unitCode":"wmoUnit:degC"}}}' + padding,
+                NWS_URL,
+            ),
+            (
+                "ECB",
+                EcbReferenceRateXmlAdapter(),
+                b"<root><Cube time='2026-11-11'>"
+                b"<Cube currency='USD' rate='1.2'/></Cube></root>" + padding,
+                ECB_URL,
+            ),
+        ):
+            with self.subTest(source=label):
+                result = adapter.parse(raw, retrieved_at=NOW, provenance=provenance)
+                self.assertIsNone(result.observation)
+                self.assertIsNotNone(result.failure)
+                self.assertEqual(result.failure.kind, FailureKind.PARSE)
+
 
 if __name__ == "__main__":
     unittest.main()

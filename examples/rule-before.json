@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.1",
+  "market_id": "synthetic-market",
+  "event_id": "synthetic-event",
+  "predicate": {
+    "operator": "above",
+    "threshold": "100"
+  },
+  "window": {
+    "start": "2026-11-01T00:00:00Z",
+    "end": "2026-11-02T00:00:00Z",
+    "timezone": "UTC"
+  },
+  "source": {
+    "id": "synthetic-demo-feed",
+    "field": "last_value"
+  },
+  "aggregation": "last",
+  "sampling": "all",
+  "revision_policy": "final_only",
+  "tie_behavior": "no",
+  "fallback": "unknown",
+  "outcomes": {
+    "yes": "YES",
+    "no": "NO",
+    "unknown": "UNKNOWN",
+    "invalid": "INVALID"
+  }
+}

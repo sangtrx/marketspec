@@ -3,13 +3,13 @@ requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "marketspec"
+name = "marketspec-oss"
 version = "0.1.0"
 description = "Executable deterministic event-contract specifications for prediction markets"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE"]
 authors = [{name = "Sang"}]
 keywords = [
   "prediction-markets",
@@ -19,12 +19,17 @@ keywords = [
   "conformance",
   "deterministic",
   "contract-schema",
+  "contract-diff",
+  "rule-change-detection",
+  "trading-infrastructure",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Testing",
 ]
 dependencies = ["PyYAML>=6.0"]
 
@@ -33,6 +38,7 @@ Homepage = "https://github.com/sangtrx/marketspec"
 Repository = "https://github.com/sangtrx/marketspec"
 Issues = "https://github.com/sangtrx/marketspec/issues"
 Changelog = "https://github.com/sangtrx/marketspec/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/sangtrx/marketspec/blob/main/docs/RULE-DIFF.md"
 
 [project.scripts]
 marketspec = "marketspec.cli:main"

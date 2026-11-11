@@ -2,3 +2,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+
+# Local Python environments, builds and verification outputs
+.venv/
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+.coverage
+.coverage.*

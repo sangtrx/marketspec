@@ -25,7 +25,12 @@ def contract():
         "revision_policy": "latest",
         "tie_behavior": "no",
         "fallback": "unknown",
-        "outcomes": {"yes": "YES", "no": "NO", "unknown": "UNKNOWN", "invalid": "INVALID"},
+        "outcomes": {
+            "yes": "YES",
+            "no": "NO",
+            "unknown": "UNKNOWN",
+            "invalid": "INVALID",
+        },
     }
 
 
@@ -65,7 +70,9 @@ class PropertyFuzzTest(unittest.TestCase):
             operator = rng.choice(("above", "below"))
             raw = contract()
             raw["predicate"] = {"operator": operator, "threshold": f"{threshold}.000"}
-            result = evaluate(compile_contract(raw), parse_evidence([evidence(threshold + delta)]))
+            result = evaluate(
+                compile_contract(raw), parse_evidence([evidence(threshold + delta)])
+            )
             expected = (delta > 0) if operator == "above" else (delta < 0)
             self.assertEqual(result.status, "yes" if expected else "no")
 

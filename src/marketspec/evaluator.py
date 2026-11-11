@@ -34,8 +34,12 @@ def _hash_evidence(evidence: Iterable[Evidence]) -> str:
     normalized = sorted(
         (_evidence_dict(item) for item in evidence),
         key=lambda item: (
-            str(item["source_id"]), str(item["field"]), str(item["observed_at"]),
-            int(item["revision"]), str(item["value"]), bool(item["final"]),
+            str(item["source_id"]),
+            str(item["field"]),
+            str(item["observed_at"]),
+            int(item["revision"]),
+            str(item["value"]),
+            bool(item["final"]),
         ),
     )
     return sha256(canonical_json(normalized).encode("utf-8")).hexdigest()
@@ -106,13 +110,16 @@ def _aggregate(values: list[Evidence], aggregation: Aggregation) -> Decimal:
     raise AssertionError(f"unsupported aggregation: {aggregation}")
 
 
-def evaluate(compiled: CompiledContract, evidence: Iterable[Evidence]) -> EvaluationResult:
+def evaluate(
+    compiled: CompiledContract, evidence: Iterable[Evidence]
+) -> EvaluationResult:
     supplied = tuple(evidence)
     evidence_hash = _hash_evidence(supplied)
     contract = compiled.contract
 
     admitted = [
-        item for item in supplied
+        item
+        for item in supplied
         if item.source_id == contract.source.source_id
         and item.field == contract.source.field
         and contract.window.start <= item.observed_at <= contract.window.end
@@ -123,14 +130,21 @@ def evaluate(compiled: CompiledContract, evidence: Iterable[Evidence]) -> Evalua
     for item in sorted(admitted, key=lambda value: (value.observed_at, value.revision)):
         key = item.observed_at
         previous = latest_by_observation.get(key)
-        if previous is not None and previous.revision == item.revision and (
-            previous.value != item.value or previous.final != item.final
+        if (
+            previous is not None
+            and previous.revision == item.revision
+            and (previous.value != item.value or previous.final != item.final)
         ):
-            return _result(compiled, evidence_hash, "invalid", None, "conflicting_evidence")
+            return _result(
+                compiled, evidence_hash, "invalid", None, "conflicting_evidence"
+            )
         if previous is None or item.revision >= previous.revision:
             latest_by_observation[key] = item
 
-    admitted = sorted(latest_by_observation.values(), key=lambda item: (item.observed_at, item.revision))
+    admitted = sorted(
+        latest_by_observation.values(),
+        key=lambda item: (item.observed_at, item.revision),
+    )
     if contract.sampling is Sampling.LATEST and admitted:
         admitted = [admitted[-1]]
 

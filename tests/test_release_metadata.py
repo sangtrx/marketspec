@@ -21,8 +21,9 @@ class ReleaseMetadataTest(unittest.TestCase):
 
     def test_license_and_discoverability_metadata_are_explicit(self):
         project = self.project()
+        self.assertEqual(project["name"], "marketspec-oss")
         self.assertEqual(project["license"], "Apache-2.0")
-        self.assertEqual(project["license-files"], ["LICENSE"])
+        self.assertEqual(project["license-files"], ["LICENSE", "NOTICE"])
         self.assertTrue((ROOT / "LICENSE").is_file())
 
         urls = project["urls"]
@@ -31,7 +32,10 @@ class ReleaseMetadataTest(unittest.TestCase):
         self.assertTrue(urls["Changelog"].endswith("/CHANGELOG.md"))
 
         keywords = set(project["keywords"])
-        self.assertTrue({"prediction-markets", "event-contracts", "settlement", "deterministic"} <= keywords)
+        self.assertTrue(
+            {"prediction-markets", "event-contracts", "settlement", "deterministic"}
+            <= keywords
+        )
 
     def test_release_docs_exist(self):
         changelog = (ROOT / "CHANGELOG.md").read_text()

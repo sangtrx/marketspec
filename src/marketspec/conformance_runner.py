@@ -11,11 +11,19 @@ from marketspec.evaluator import evaluate
 
 def _load(path: Path | None = None) -> dict[str, Any]:
     if path is None:
-        text = resources.files("marketspec").joinpath("conformance/v0.1/golden.json").read_text(encoding="utf-8")
+        text = (
+            resources.files("marketspec")
+            .joinpath("conformance/v0.1/golden.json")
+            .read_text(encoding="utf-8")
+        )
     else:
         text = path.read_text(encoding="utf-8")
     value = json.loads(text)
-    if not isinstance(value, dict) or value.get("schema_version") != "0.1" or not isinstance(value.get("cases"), list):
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != "0.1"
+        or not isinstance(value.get("cases"), list)
+    ):
         raise ValueError("invalid MarketSpec conformance corpus")
     return value
 
@@ -41,7 +49,9 @@ def run_corpus(path: Path | None = None) -> dict[str, Any]:
                     compile_contract(case["contract"])
                 except CompileError as exc:
                     if exc.code != expected["code"] or exc.path != expected["path"]:
-                        failures.append({"name": name, "reason": "compile_error_mismatch"})
+                        failures.append(
+                            {"name": name, "reason": "compile_error_mismatch"}
+                        )
                         continue
                 else:
                     failures.append({"name": name, "reason": "expected_compile_error"})
@@ -50,7 +60,9 @@ def run_corpus(path: Path | None = None) -> dict[str, Any]:
                 failures.append({"name": name, "reason": "unknown_case_kind"})
                 continue
         except (CompileError, KeyError, TypeError, ValueError) as exc:
-            failures.append({"name": name, "reason": f"runner_error:{type(exc).__name__}"})
+            failures.append(
+                {"name": name, "reason": f"runner_error:{type(exc).__name__}"}
+            )
             continue
         passed += 1
 

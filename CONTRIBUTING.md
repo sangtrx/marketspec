@@ -1,6 +1,9 @@
 # Contributing to MarketSpec
 
-Thanks for helping improve MarketSpec. This repository is the complete public contribution surface: external contributors do **not** need access to Sang's private workflow data, ResolveOps internals, or Curren research.
+Thanks for helping improve MarketSpec. This repository contains everything
+needed to run and test the public Python package. Contributions to contracts,
+fixture-based conformance tests, source adapters, docs and developer integrations
+are welcome when they fix a real problem.
 
 ## Local setup
 
@@ -72,7 +75,9 @@ Use the repository issue forms when they fit. Bug reports should include a minim
 
 Pull requests should include the commands run and their results. Link a public issue when one exists.
 
-Maintainer workflow may reference `sangtrx/sang-workspace`, but contributors are not expected to read or update that repository to participate here.
+External contributors work entirely through this public repository's Issues
+and pull requests. Maintainer release reviews are manual and require no GitHub
+Actions or private tooling from contributors.
 
 ## Security reports
 

@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import stat
 import sys
+import tempfile
 from pathlib import Path
 
 from marketspec import __version__
-from marketspec.compiler import CompileError, compile_text, parse_evidence_text
+from marketspec.compiler import (
+    MAX_DOCUMENT_BYTES,
+    CompileError,
+    compile_text,
+    parse_evidence_text,
+)
 from marketspec.conformance_runner import run_corpus
+from marketspec.contract_diff import ContractComparisonError, diff_contracts
 from marketspec.evaluator import evaluate
 
 
@@ -16,20 +25,104 @@ def _format(path: Path) -> str:
     return "json" if suffix == ".json" else "yaml"
 
 
+def _read_input(path: Path) -> str:
+    """Bound file I/O before parsing; never allocate an unlimited input file."""
+    with path.open("rb") as handle:
+        data = handle.read(MAX_DOCUMENT_BYTES + 1)
+    if len(data) > MAX_DOCUMENT_BYTES:
+        raise CompileError("document_too_large", "$", "document exceeds 8 MiB")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CompileError("parse_error", "$", "input document must be UTF-8") from exc
+
+
+def _check_output_path(output: Path, inputs: list[Path]) -> None:
+    """Prevent reports from overwriting inputs through path, symlink or hardlink aliases."""
+    try:
+        resolved_output = output.resolve()
+        for source in inputs:
+            if resolved_output == source.resolve() or (
+                output.exists() and source.exists() and output.samefile(source)
+            ):
+                raise ContractComparisonError(
+                    "output_input_conflict",
+                    "report output must not overwrite a contract or evidence input",
+                )
+    except (OSError, RuntimeError) as exc:
+        code = "unsafe_output_path" if output.is_symlink() else "io_error"
+        raise ContractComparisonError(code, f"invalid output path: {exc}") from exc
+
+    if output.is_symlink():
+        raise ContractComparisonError(
+            "unsafe_output_path", "report output must not be a symbolic link"
+        )
+    if output.exists() and not output.is_file():
+        raise ContractComparisonError(
+            "unsafe_output_path", "report output must be a regular file"
+        )
+
+
+def _write_report_atomic(output: Path, payload: str) -> None:
+    """Never truncate an existing report if serialization or replacement fails."""
+    temporary: Path | None = None
+    existing_mode = stat.S_IMODE(output.stat().st_mode) if output.is_file() else None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=".marketspec-",
+            suffix=".tmp",
+            dir=output.parent,
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(payload + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+            if existing_mode is not None and hasattr(os, "fchmod"):
+                os.fchmod(handle.fileno(), existing_mode)
+        os.replace(temporary, output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="marketspec")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     sub = parser.add_subparsers(dest="command")
 
     compile_cmd = sub.add_parser("compile", help="compile and canonicalize a contract")
     compile_cmd.add_argument("contract")
 
-    evaluate_cmd = sub.add_parser("evaluate", help="evaluate typed evidence against a contract")
+    evaluate_cmd = sub.add_parser(
+        "evaluate", help="evaluate typed evidence against a contract"
+    )
     evaluate_cmd.add_argument("contract")
     evaluate_cmd.add_argument("evidence")
 
-    conformance_cmd = sub.add_parser("conformance", help="run the versioned offline conformance corpus")
-    conformance_cmd.add_argument("--corpus", help="optional path to an alternate v0.1 golden.json")
+    diff_cmd = sub.add_parser(
+        "diff", help="compare two typed settlement contracts for material drift"
+    )
+    diff_cmd.add_argument("before", help="baseline YAML or JSON contract")
+    diff_cmd.add_argument("after", help="candidate YAML or JSON contract")
+    diff_cmd.add_argument(
+        "--evidence",
+        help="optional shared evidence JSON/YAML to replay under both rule versions",
+    )
+    diff_cmd.add_argument(
+        "--output", "-o", help="write JSON report to this file instead of stdout"
+    )
+
+    conformance_cmd = sub.add_parser(
+        "conformance", help="run the versioned offline conformance corpus"
+    )
+    conformance_cmd.add_argument(
+        "--corpus", help="optional path to an alternate v0.1 golden.json"
+    )
     return parser
 
 
@@ -44,24 +137,73 @@ def main() -> int:
             print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
             return 0 if summary["failed"] == 0 else 1
 
+        if args.command == "diff":
+            before_path, after_path = Path(args.before), Path(args.after)
+            before = compile_text(_read_input(before_path), format=_format(before_path))
+            after = compile_text(_read_input(after_path), format=_format(after_path))
+            evidence = None
+            input_paths = [before_path, after_path]
+            if args.evidence is not None:
+                evidence_path = Path(args.evidence)
+                input_paths.append(evidence_path)
+                evidence = parse_evidence_text(
+                    _read_input(evidence_path),
+                    format=_format(evidence_path),
+                )
+            output_path = Path(args.output) if args.output is not None else None
+            if output_path is not None:
+                _check_output_path(output_path, input_paths)
+
+            report = diff_contracts(before, after, evidence=evidence)
+            payload = json.dumps(report, ensure_ascii=False, sort_keys=True)
+            if output_path is not None:
+                _write_report_atomic(output_path, payload)
+            else:
+                print(payload)
+            return 1 if report["changed"] else 0
+
         contract_path = Path(args.contract)
-        compiled = compile_text(contract_path.read_text(), format=_format(contract_path))
+        compiled = compile_text(
+            _read_input(contract_path), format=_format(contract_path)
+        )
         if args.command == "compile":
-            print(json.dumps({
-                "contract": json.loads(compiled.canonical_json),
-                "contract_hash": compiled.content_hash,
-            }, ensure_ascii=False, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "contract": json.loads(compiled.canonical_json),
+                        "contract_hash": compiled.content_hash,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
             return 0
 
         evidence_path = Path(args.evidence)
-        evidence = parse_evidence_text(evidence_path.read_text(), format=_format(evidence_path))
-        print(json.dumps(evaluate(compiled, evidence).as_dict(), ensure_ascii=False, sort_keys=True))
+        evidence = parse_evidence_text(
+            _read_input(evidence_path), format=_format(evidence_path)
+        )
+        print(
+            json.dumps(
+                evaluate(compiled, evidence).as_dict(),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
         return 0
+    except ContractComparisonError as exc:
+        print(json.dumps({"error": exc.as_dict()}, sort_keys=True), file=sys.stderr)
+        return 2
     except CompileError as exc:
         print(json.dumps({"error": exc.as_dict()}, sort_keys=True), file=sys.stderr)
         return 2
     except (OSError, ValueError) as exc:
-        print(json.dumps({"error": {"code": "io_error", "message": str(exc)}}, sort_keys=True), file=sys.stderr)
+        print(
+            json.dumps(
+                {"error": {"code": "io_error", "message": str(exc)}}, sort_keys=True
+            ),
+            file=sys.stderr,
+        )
         return 2
 
 

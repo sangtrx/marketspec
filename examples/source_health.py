@@ -1,6 +1,6 @@
 """Minimal offline MarketSpec settlement-source example."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from marketspec.sources import (
@@ -9,9 +9,8 @@ from marketspec.sources import (
     assess_health,
 )
 
-
 raw = Path("tests/fixtures/ecb_eurofxref_2026-09-18.xml").read_bytes()
-retrieved_at = datetime(2026, 9, 19, 12, 0, tzinfo=timezone.utc)
+retrieved_at = datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
 result = EcbReferenceRateXmlAdapter("USD").parse(
     raw,
     retrieved_at=retrieved_at,

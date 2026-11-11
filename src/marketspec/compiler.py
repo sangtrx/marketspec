@@ -42,6 +42,42 @@ class _DecimalLoader(yaml.SafeLoader):
     pass
 
 
+# Keep inputs bounded before decimal->fixed-point expansion or exact-mean arithmetic.
+_MAX_DECIMAL_DIGITS = 256
+MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
+_DECIMAL_LITERAL_RE = re.compile(
+    r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$"
+)
+_INTEGER_LITERAL_RE = re.compile(r"^-?(?:0|[1-9][0-9]*)$")
+
+
+def _bounded_decimal(value: Decimal, path: str) -> Decimal:
+    if not value.is_finite():
+        raise CompileError("invalid_decimal", path, "decimal must be finite")
+    representation = value.as_tuple()
+    digits, exponent = representation.digits, representation.exponent
+    if (
+        len(digits) > _MAX_DECIMAL_DIGITS
+        or abs(exponent) > _MAX_DECIMAL_DIGITS
+        or len(digits) + max(exponent, 0) > _MAX_DECIMAL_DIGITS
+    ):
+        raise CompileError(
+            "decimal_range", path, "decimal exceeds supported 256-digit range"
+        )
+    return value
+
+
+def _parse_decimal_literal(raw: str, path: str) -> Decimal:
+    if len(raw) > _MAX_DECIMAL_DIGITS or not _DECIMAL_LITERAL_RE.fullmatch(raw):
+        raise CompileError(
+            "decimal_representation", path, "expected a bounded base-10 decimal"
+        )
+    try:
+        return _bounded_decimal(Decimal(raw), path)
+    except InvalidOperation as exc:
+        raise CompileError("invalid_decimal", path, "invalid decimal") from exc
+
+
 # PyYAML defaults to YAML 1.1 booleans, where yes/no become True/False.
 # MarketSpec follows YAML 1.2-style booleans so outcome names remain strings.
 _DecimalLoader.yaml_implicit_resolvers = {
@@ -59,11 +95,18 @@ _DecimalLoader.add_implicit_resolver(
 
 
 def _yaml_decimal(loader: yaml.SafeLoader, node: yaml.Node) -> Decimal:
-    raw = loader.construct_scalar(node).replace("_", "")
-    try:
-        return Decimal(raw)
-    except InvalidOperation as exc:
-        raise CompileError("invalid_decimal", "$", f"invalid YAML decimal {raw!r}") from exc
+    return _parse_decimal_literal(loader.construct_scalar(node), "$")
+
+
+def _yaml_integer(loader: yaml.SafeLoader, node: yaml.Node) -> int:
+    raw = loader.construct_scalar(node)
+    if len(raw) > _MAX_DECIMAL_DIGITS or not _INTEGER_LITERAL_RE.fullmatch(raw):
+        raise CompileError(
+            "decimal_representation",
+            "$",
+            "YAML integers must be unambiguous base-10 (no octal, hex, or sexagesimal)",
+        )
+    return int(raw, 10)
 
 
 def _yaml_timestamp(loader: yaml.SafeLoader, node: yaml.Node) -> str:
@@ -71,11 +114,20 @@ def _yaml_timestamp(loader: yaml.SafeLoader, node: yaml.Node) -> str:
 
 
 _DecimalLoader.add_constructor("tag:yaml.org,2002:float", _yaml_decimal)
+_DecimalLoader.add_constructor("tag:yaml.org,2002:int", _yaml_integer)
 _DecimalLoader.add_constructor("tag:yaml.org,2002:timestamp", _yaml_timestamp)
 
 
 def _reject_constant(raw: str) -> None:
-    raise CompileError("invalid_number", "$", f"non-finite number {raw!r} is not allowed")
+    raise CompileError(
+        "invalid_number", "$", f"non-finite number {raw!r} is not allowed"
+    )
+
+
+def _json_integer(raw: str) -> int:
+    if len(raw) > _MAX_DECIMAL_DIGITS:
+        raise CompileError("decimal_range", "$", "integer exceeds supported limit")
+    return int(raw, 10)
 
 
 def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -87,14 +139,18 @@ def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _yaml_unique_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
+def _yaml_unique_mapping(
+    loader: yaml.SafeLoader, node: yaml.MappingNode
+) -> dict[Any, Any]:
     result: dict[Any, Any] = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=False)
         try:
             duplicate = key in result
         except TypeError as exc:
-            raise CompileError("type_error", "$", "YAML mapping keys must be hashable") from exc
+            raise CompileError(
+                "type_error", "$", "YAML mapping keys must be hashable"
+            ) from exc
         if duplicate:
             raise CompileError("duplicate_key", "$", f"duplicate mapping key {key!r}")
         result[key] = loader.construct_object(value_node, deep=False)
@@ -108,12 +164,17 @@ _DecimalLoader.add_constructor(
 
 
 def load_document(text: str, *, format: str | None = None) -> Any:
-    fmt = (format or ("json" if text.lstrip().startswith(("{", "[")) else "yaml")).lower()
+    if len(text.encode("utf-8")) > MAX_DOCUMENT_BYTES:
+        raise CompileError("document_too_large", "$", "document exceeds 8 MiB")
+    fmt = (
+        format or ("json" if text.lstrip().startswith(("{", "[")) else "yaml")
+    ).lower()
     try:
         if fmt == "json":
             return json.loads(
                 text,
-                parse_float=Decimal,
+                parse_float=lambda raw: _parse_decimal_literal(raw, "$"),
+                parse_int=_json_integer,
                 parse_constant=_reject_constant,
                 object_pairs_hook=_unique_json_object,
             )
@@ -121,7 +182,7 @@ def load_document(text: str, *, format: str | None = None) -> Any:
             return yaml.load(text, Loader=_DecimalLoader)
     except CompileError:
         raise
-    except (json.JSONDecodeError, yaml.YAMLError, ValueError) as exc:
+    except (json.JSONDecodeError, yaml.YAMLError, ValueError, RecursionError) as exc:
         raise CompileError("parse_error", "$", str(exc)) from exc
     raise CompileError("format_error", "$", f"unsupported format {fmt!r}")
 
@@ -133,12 +194,18 @@ def _mapping(value: Any, path: str) -> dict[str, Any]:
 
 
 def _shape(value: dict[str, Any], path: str, required: set[str]) -> None:
+    if any(not isinstance(key, str) for key in value):
+        raise CompileError("type_error", path, "object keys must be strings")
     missing = sorted(required - set(value))
     extra = sorted(set(value) - required)
     if missing:
-        raise CompileError("missing_field", path, f"missing required field(s): {', '.join(missing)}")
+        raise CompileError(
+            "missing_field", path, f"missing required field(s): {', '.join(missing)}"
+        )
     if extra:
-        raise CompileError("unknown_field", path, f"unknown field(s): {', '.join(extra)}")
+        raise CompileError(
+            "unknown_field", path, f"unknown field(s): {', '.join(extra)}"
+        )
 
 
 def _string(value: Any, path: str) -> str:
@@ -158,33 +225,40 @@ def _enum(enum_type: type, value: Any, path: str):
 
 def _decimal(value: Any, path: str) -> Decimal:
     if isinstance(value, float):
-        raise CompileError("binary_float", path, "binary floating-point settlement values are not allowed")
+        raise CompileError(
+            "binary_float",
+            path,
+            "binary floating-point settlement values are not allowed",
+        )
     if isinstance(value, bool) or not isinstance(value, (str, int, Decimal)):
         raise CompileError("type_error", path, "expected a decimal string or integer")
-    try:
-        result = Decimal(value) if not isinstance(value, Decimal) else value
-    except InvalidOperation as exc:
-        raise CompileError("invalid_decimal", path, "invalid decimal value") from exc
-    if not result.is_finite():
-        raise CompileError("invalid_decimal", path, "decimal must be finite")
-    return result
+    if isinstance(value, str):
+        return _parse_decimal_literal(value, path)
+    if isinstance(value, int) and (
+        value.bit_length() > _MAX_DECIMAL_DIGITS * 4
+        or len(str(value)) > _MAX_DECIMAL_DIGITS
+    ):
+        raise CompileError("decimal_range", path, "decimal exceeds supported limit")
+    return _bounded_decimal(Decimal(value), path)
+
 
 _CONTRACT_DECIMAL_RE = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
 
 
 def _contract_decimal(value: Any, path: str) -> Decimal:
     if isinstance(value, float):
-        raise CompileError("binary_float", path, "binary floating-point settlement values are not allowed")
+        raise CompileError(
+            "binary_float",
+            path,
+            "binary floating-point settlement values are not allowed",
+        )
     if not isinstance(value, str) or _CONTRACT_DECIMAL_RE.fullmatch(value) is None:
         raise CompileError(
             "decimal_representation",
             path,
             "expected a decimal string such as '100' or '100.5'",
         )
-    result = Decimal(value)
-    if not result.is_finite():
-        raise CompileError("invalid_decimal", path, "decimal must be finite")
-    return result
+    return _parse_decimal_literal(value, path)
 
 
 def _datetime(value: Any, path: str) -> datetime:
@@ -193,10 +267,17 @@ def _datetime(value: Any, path: str) -> datetime:
     try:
         result = datetime.fromisoformat(candidate)
     except ValueError as exc:
-        raise CompileError("invalid_datetime", path, "expected ISO-8601 datetime") from exc
+        raise CompileError(
+            "invalid_datetime", path, "expected ISO-8601 datetime"
+        ) from exc
     if result.tzinfo is None or result.utcoffset() is None:
         raise CompileError("naive_datetime", path, "datetime must include a UTC offset")
-    return result.astimezone(UTC)
+    try:
+        return result.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise CompileError(
+            "invalid_datetime", path, "datetime out of supported range"
+        ) from exc
 
 
 def _timezone(value: Any, path: str) -> str:
@@ -204,11 +285,16 @@ def _timezone(value: Any, path: str) -> str:
     try:
         ZoneInfo(name)
     except ZoneInfoNotFoundError as exc:
-        raise CompileError("invalid_timezone", path, "expected an IANA timezone name") from exc
+        raise CompileError(
+            "invalid_timezone", path, "expected an IANA timezone name"
+        ) from exc
     return name
 
 
 def _decimal_text(value: Decimal) -> str:
+    _bounded_decimal(value, "$.decimal")
+    if value.is_zero():
+        return "0"
     text = format(value, "f")
     if "." in text:
         text = text.rstrip("0").rstrip(".")
@@ -216,7 +302,9 @@ def _decimal_text(value: Decimal) -> str:
 
 
 def _iso(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return (
+        value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    )
 
 
 def canonical_contract_dict(contract: EventContract) -> dict[str, Any]:
@@ -252,7 +340,13 @@ def canonical_contract_dict(contract: EventContract) -> dict[str, Any]:
 
 
 def canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
 
 
 def content_hash(canonical: str) -> str:
@@ -262,19 +356,35 @@ def content_hash(canonical: str) -> str:
 def compile_contract(raw: Any) -> CompiledContract:
     root = _mapping(raw, "$")
     required = {
-        "schema_version", "market_id", "event_id", "predicate", "window", "source",
-        "aggregation", "sampling", "revision_policy", "tie_behavior", "fallback", "outcomes",
+        "schema_version",
+        "market_id",
+        "event_id",
+        "predicate",
+        "window",
+        "source",
+        "aggregation",
+        "sampling",
+        "revision_policy",
+        "tie_behavior",
+        "fallback",
+        "outcomes",
     }
     _shape(root, "$", required)
     version = _string(root["schema_version"], "$.schema_version")
     if version != "0.1":
-        raise CompileError("schema_version", "$.schema_version", "only schema_version '0.1' is supported")
+        raise CompileError(
+            "schema_version",
+            "$.schema_version",
+            "only schema_version '0.1' is supported",
+        )
 
     predicate_raw = _mapping(root["predicate"], "$.predicate")
     _shape(predicate_raw, "$.predicate", {"operator", "threshold"})
     predicate = Predicate(
         operator=_enum(Operator, predicate_raw["operator"], "$.predicate.operator"),
-        threshold=_contract_decimal(predicate_raw["threshold"], "$.predicate.threshold"),
+        threshold=_contract_decimal(
+            predicate_raw["threshold"], "$.predicate.threshold"
+        ),
     )
 
     window_raw = _mapping(root["window"], "$.window")
@@ -283,7 +393,11 @@ def compile_contract(raw: Any) -> CompiledContract:
     end = _datetime(window_raw["end"], "$.window.end")
     if start >= end:
         raise CompileError("invalid_window", "$.window", "start must be before end")
-    window = ObservationWindow(start=start, end=end, timezone=_timezone(window_raw["timezone"], "$.window.timezone"))
+    window = ObservationWindow(
+        start=start,
+        end=end,
+        timezone=_timezone(window_raw["timezone"], "$.window.timezone"),
+    )
 
     source_raw = _mapping(root["source"], "$.source")
     _shape(source_raw, "$.source", {"id", "field"})
@@ -310,13 +424,19 @@ def compile_contract(raw: Any) -> CompiledContract:
         source=source,
         aggregation=_enum(Aggregation, root["aggregation"], "$.aggregation"),
         sampling=_enum(Sampling, root["sampling"], "$.sampling"),
-        revision_policy=_enum(RevisionPolicy, root["revision_policy"], "$.revision_policy"),
+        revision_policy=_enum(
+            RevisionPolicy, root["revision_policy"], "$.revision_policy"
+        ),
         tie_behavior=_enum(TieBehavior, root["tie_behavior"], "$.tie_behavior"),
         fallback=_enum(Fallback, root["fallback"], "$.fallback"),
         outcomes=outcomes,
     )
     canonical = canonical_json(canonical_contract_dict(contract))
-    return CompiledContract(contract=contract, canonical_json=canonical, content_hash=content_hash(canonical))
+    return CompiledContract(
+        contract=contract,
+        canonical_json=canonical,
+        content_hash=content_hash(canonical),
+    )
 
 
 def compile_text(text: str, *, format: str | None = None) -> CompiledContract:
@@ -324,9 +444,15 @@ def compile_text(text: str, *, format: str | None = None) -> CompiledContract:
 
 
 def parse_evidence(raw: Any) -> tuple[Evidence, ...]:
-    values = raw.get("evidence") if isinstance(raw, dict) and set(raw) == {"evidence"} else raw
+    values = (
+        raw.get("evidence")
+        if isinstance(raw, dict) and set(raw) == {"evidence"}
+        else raw
+    )
     if not isinstance(values, list):
-        raise CompileError("type_error", "$.evidence", "expected a list of evidence records")
+        raise CompileError(
+            "type_error", "$.evidence", "expected a list of evidence records"
+        )
     records: list[Evidence] = []
     required = {"source_id", "field", "observed_at", "value", "final", "revision"}
     for index, item in enumerate(values):
@@ -338,19 +464,25 @@ def parse_evidence(raw: Any) -> tuple[Evidence, ...]:
         if not isinstance(final, bool):
             raise CompileError("type_error", f"{path}.final", "expected boolean")
         if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
-            raise CompileError("type_error", f"{path}.revision", "expected non-negative integer")
-        records.append(Evidence(
-            source_id=_string(record["source_id"], f"{path}.source_id"),
-            field=_string(record["field"], f"{path}.field"),
-            observed_at=_datetime(record["observed_at"], f"{path}.observed_at"),
-            value=_decimal(record["value"], f"{path}.value"),
-            final=final,
-            revision=revision,
-        ))
+            raise CompileError(
+                "type_error", f"{path}.revision", "expected non-negative integer"
+            )
+        records.append(
+            Evidence(
+                source_id=_string(record["source_id"], f"{path}.source_id"),
+                field=_string(record["field"], f"{path}.field"),
+                observed_at=_datetime(record["observed_at"], f"{path}.observed_at"),
+                value=_decimal(record["value"], f"{path}.value"),
+                final=final,
+                revision=revision,
+            )
+        )
     return tuple(records)
 
 
-def parse_evidence_text(text: str, *, format: str | None = None) -> tuple[Evidence, ...]:
+def parse_evidence_text(
+    text: str, *, format: str | None = None
+) -> tuple[Evidence, ...]:
     return parse_evidence(load_document(text, format=format))
 
 

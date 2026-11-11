@@ -66,7 +66,9 @@ class SourceAdapterTest(unittest.TestCase):
             datetime(2026, 9, 20, 20, 30, tzinfo=UTC),
         )
 
-    def test_json_schema_fingerprint_uses_all_distinct_array_shapes_without_order_noise(self) -> None:
+    def test_json_schema_fingerprint_uses_all_distinct_array_shapes_without_order_noise(
+        self,
+    ) -> None:
         first = {"items": [{"a": 1}, {"b": "x"}, {"a": 2}]}
         reordered = {"items": [{"b": "y"}, {"a": 3}]}
         drifted = {"items": [{"a": 1}, {"b": "x"}, {"c": True}]}
@@ -86,9 +88,7 @@ class SourceAdapterTest(unittest.TestCase):
         first = ElementTree.fromstring(
             b"<root><item a='1'/><item a='2'/><note x='1'/></root>"
         )
-        reordered = ElementTree.fromstring(
-            b"<root><note x='9'/><item a='3'/></root>"
-        )
+        reordered = ElementTree.fromstring(b"<root><note x='9'/><item a='3'/></root>")
         drifted = ElementTree.fromstring(
             b"<root><note x='9'/><item a='3' extra='1'/></root>"
         )
@@ -114,7 +114,9 @@ class SourceAdapterTest(unittest.TestCase):
         assert result.failure is not None
         self.assertEqual(result.failure.kind, FailureKind.SEMANTIC)
 
-    def test_health_states_cover_outage_drift_revision_conflict_and_staleness(self) -> None:
+    def test_health_states_cover_outage_drift_revision_conflict_and_staleness(
+        self,
+    ) -> None:
         raw = (FIXTURES / "nws_kphl_observation_2026-09-20T20-30-00Z.json").read_bytes()
         adapter = NwsLatestTemperatureJsonAdapter()
         good = adapter.parse(
@@ -128,7 +130,9 @@ class SourceAdapterTest(unittest.TestCase):
             expected_schema_fingerprint=good.observation.schema_fingerprint,
         )
 
-        self.assertEqual(assess_health(good, policy=policy, now=NOW), HealthStatus.HEALTHY)
+        self.assertEqual(
+            assess_health(good, policy=policy, now=NOW), HealthStatus.HEALTHY
+        )
         self.assertEqual(
             assess_health(good, policy=policy, now=NOW, conflicting=True),
             HealthStatus.CONFLICT,
@@ -180,7 +184,9 @@ class SourceAdapterTest(unittest.TestCase):
         )
         self.assertIsNotNone(result.failure)
         self.assertEqual(
-            assess_health(result, policy=HealthPolicy(max_age=timedelta(hours=1)), now=NOW),
+            assess_health(
+                result, policy=HealthPolicy(max_age=timedelta(hours=1)), now=NOW
+            ),
             HealthStatus.UNKNOWN,
         )
 

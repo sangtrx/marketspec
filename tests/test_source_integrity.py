@@ -47,7 +47,12 @@ class SourceIntegrityTest(unittest.TestCase):
     def test_future_timestamps_never_produce_healthy_receipt(self) -> None:
         old = valid_observation()
         cases = {
-            "observed": replace(old, observed_at=NOW + timedelta(minutes=1)),
+            "observed": replace(
+                old,
+                observed_at=NOW + timedelta(minutes=1),
+                published_at=NOW + timedelta(minutes=2),
+                retrieved_at=NOW + timedelta(minutes=3),
+            ),
             "published": replace(
                 old,
                 published_at=NOW + timedelta(minutes=1),
@@ -120,6 +125,66 @@ class SourceIntegrityTest(unittest.TestCase):
             _json_schema_fingerprint(parsed_with_float),
             _json_schema_fingerprint(parsed_with_decimal),
         )
+
+    def test_impossible_observation_chronology_is_rejected(self) -> None:
+        old = valid_observation()
+        with self.assertRaises(ValueError):
+            replace(old, observed_at=NOW - timedelta(minutes=6))
+
+    def test_ecb_duplicate_quotes_or_dates_fail_closed(self) -> None:
+        payloads = {
+            "duplicate_currency": (
+                b"<Cube><Cube time='2026-11-11'>"
+                b"<Cube currency='USD' rate='1.2'/>"
+                b"<Cube currency='USD' rate='2.5'/>"
+                b"</Cube></Cube>"
+            ),
+            "multiple_dates": (
+                b"<Cube><Cube time='2026-11-10'>"
+                b"<Cube currency='USD' rate='1.2'/></Cube>"
+                b"<Cube time='2026-11-11'>"
+                b"<Cube currency='USD' rate='2.5'/></Cube></Cube>"
+            ),
+        }
+        for name, raw in payloads.items():
+            with self.subTest(name=name):
+                result = EcbReferenceRateXmlAdapter("USD").parse(
+                    raw, retrieved_at=NOW, provenance=ECB_URL
+                )
+                self.assertIsNone(result.observation)
+                self.assertIsNotNone(result.failure)
+                self.assertEqual(result.failure.kind, FailureKind.PARSE)
+
+    def test_nws_duplicate_keys_fail_closed(self) -> None:
+        raw = (
+            b'{"properties":{"timestamp":"2026-11-11T14:00:00Z",'
+            b'"temperature":{"value":1.25,"value":10,'
+            b'"unitCode":"wmoUnit:degC"}}}'
+        )
+        result = NwsLatestTemperatureJsonAdapter().parse(
+            raw, retrieved_at=NOW, provenance=NWS_URL
+        )
+        self.assertIsNone(result.observation)
+        self.assertIsNotNone(result.failure)
+        self.assertEqual(result.failure.kind, FailureKind.PARSE)
+
+    def test_nws_missing_or_invalid_unit_is_not_accepted(self) -> None:
+        for bad in (None, 42, "", "   "):
+            with self.subTest(unit=bad):
+                raw = json.dumps(
+                    {
+                        "properties": {
+                            "timestamp": "2026-11-11T14:00:00Z",
+                            "temperature": {"value": 1.25, "unitCode": bad},
+                        }
+                    }
+                ).encode()
+                result = NwsLatestTemperatureJsonAdapter().parse(
+                    raw, retrieved_at=NOW, provenance=NWS_URL
+                )
+                self.assertIsNone(result.observation)
+                self.assertIsNotNone(result.failure)
+                self.assertEqual(result.failure.kind, FailureKind.SEMANTIC)
 
 
 if __name__ == "__main__":

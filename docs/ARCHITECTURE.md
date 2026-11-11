@@ -66,7 +66,7 @@ See [QUICKSTART.md](QUICKSTART.md) and [EXAMPLES.md](EXAMPLES.md) for concrete h
 
 - MarketSpec v0.1 is pre-1.0 and accepts the documented `schema_version: "0.1"`; unsupported forward schema versions fail closed.
 - The core evaluates already typed evidence. It does not prove that a real-world publisher is truthful, available, or legally authoritative.
-- Public reference adapters cover source-normalization examples, not every venue/source or production retry policy. Nonfinite numeric measurements are rejected; source health treats observations, publication or retrieval timestamps after the as-of clock as UNKNOWN, not HEALTHY. The caller must provide a trustworthy clock.
+- Public reference adapters cover source-normalization examples, not every venue/source or production retry policy. Nonfinite numeric measurements, impossible observation/publication ordering, ambiguous duplicate source records and missing NWS temperature units fail closed; source health treats observation, publication or retrieval timestamps after the as-of clock as UNKNOWN, not HEALTHY. The caller must provide a trustworthy clock.
 - Source freshness beyond the contract observation window belongs to the source-health/watch layer rather than being guessed by the evaluator.
 - Network retrieval, durable watch ownership, alerts, secrets, hosted history, and production operations are outside the public deterministic core.
 - Optional AI/LLM parsing is untrusted input until converted into validated typed data; it is never settlement authority.

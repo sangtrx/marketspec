@@ -85,6 +85,8 @@ class SourceObservation:
                 raise ValueError(f"{field_name} must be timezone-aware")
         if self.retrieved_at < self.published_at:
             raise ValueError("retrieved_at cannot precede published_at")
+        if self.observed_at > self.published_at:
+            raise ValueError("observed_at cannot follow published_at")
         if not isinstance(self.value, (Decimal, str, bool)):
             raise TypeError("observation value must be decimal, string or boolean")
         if isinstance(self.value, Decimal) and not self.value.is_finite():

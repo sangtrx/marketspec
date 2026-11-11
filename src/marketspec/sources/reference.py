@@ -28,6 +28,15 @@ def _reject_nonfinite_json_constant(token: str) -> None:
     raise ValueError(f"non-finite JSON number {token!r}")
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key {key!r}")
+        result[key] = value
+    return result
+
+
 def _json_shape(value: Any, path: str = "$") -> list[str]:
     if isinstance(value, dict):
         rows = [f"{path}:object"]
@@ -139,37 +148,33 @@ class EcbReferenceRateXmlAdapter:
                 message=f"invalid ECB XML: {exc}",
             )
 
-        dated_cube = next(
-            (
-                element
-                for element in root.iter()
-                if _local_name(element.tag) == "Cube" and "time" in element.attrib
-            ),
-            None,
-        )
-        if dated_cube is None:
+        dated_cubes = [
+            element
+            for element in root.iter()
+            if _local_name(element.tag) == "Cube" and "time" in element.attrib
+        ]
+        if len(dated_cubes) != 1:
             return _failure(
                 self.identity,
                 kind=FailureKind.PARSE,
                 provenance=provenance,
-                message="ECB XML has no dated Cube element",
+                message="ECB XML must contain exactly one dated Cube element",
             )
-        quote = next(
-            (
-                child
-                for child in dated_cube
-                if _local_name(child.tag) == "Cube"
-                and child.attrib.get("currency") == self.currency
-            ),
-            None,
-        )
-        if quote is None or "rate" not in quote.attrib:
+        dated_cube = dated_cubes[0]
+        quotes = [
+            child
+            for child in dated_cube
+            if _local_name(child.tag) == "Cube"
+            and child.attrib.get("currency") == self.currency
+        ]
+        if len(quotes) != 1 or "rate" not in quotes[0].attrib:
             return _failure(
                 self.identity,
                 kind=FailureKind.PARSE,
                 provenance=provenance,
-                message=f"ECB XML has no rate for {self.currency}",
+                message=f"ECB XML must contain exactly one rate for {self.currency}",
             )
+        quote = quotes[0]
         try:
             published_date = date.fromisoformat(dated_cube.attrib["time"])
             published_at = datetime.combine(published_date, time.min, tzinfo=UTC)
@@ -223,6 +228,7 @@ class NwsLatestTemperatureJsonAdapter:
                 raw.decode("utf-8"),
                 parse_float=Decimal,
                 parse_constant=_reject_nonfinite_json_constant,
+                object_pairs_hook=_unique_json_object,
             )
         except (UnicodeDecodeError, JSONDecodeError, ValueError) as exc:
             return _failure(
@@ -251,6 +257,13 @@ class NwsLatestTemperatureJsonAdapter:
                 provenance=provenance,
                 message="NWS temperature value is null",
             )
+        if not isinstance(unit, str) or not unit.strip():
+            return _failure(
+                self.identity,
+                kind=FailureKind.SEMANTIC,
+                provenance=provenance,
+                message="NWS temperature unitCode must be a non-empty string",
+            )
         try:
             observed_at = datetime.fromisoformat(str(timestamp))
             if observed_at.tzinfo is None or observed_at.utcoffset() is None:
@@ -273,7 +286,7 @@ class NwsLatestTemperatureJsonAdapter:
                 observed_at=observed_at,
                 published_at=observed_at,
                 value=value,
-                unit=str(unit),
+                unit=unit,
                 provenance=provenance,
                 finality=Finality.FINAL,
                 revision_id=str(timestamp),

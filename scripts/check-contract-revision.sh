@@ -32,7 +32,7 @@ case "$rc" in
     exit 1
     ;;
   2)
-    echo "MarketSpec: invalid contract, mismatched identity, or I/O failure" >&2
+    echo "MarketSpec: invalid contract, mismatched identity, or I/O failure; any existing report may be stale" >&2
     exit 2
     ;;
   *)

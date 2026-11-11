@@ -26,7 +26,7 @@ marketspec diff examples/rule-before.json examples/rule-after.json \
 ~~~
 
 The JSON report contains both contract hashes, changed field paths and a
-replay receipt showing the before/after status and admitted evidence hash.
+replay receipt showing the before/after status and supplied evidence hash.
 Use [the 2-minute guide](docs/RULE-DIFF.md) for plain JSON, CI integration
 and a read-only [AI-agent preflight example](examples/agent_preflight.py).
 

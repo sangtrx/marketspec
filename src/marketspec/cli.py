@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -31,10 +32,9 @@ def _check_output_path(output: Path, inputs: list[Path]) -> None:
                     "output_input_conflict",
                     "report output must not overwrite a contract or evidence input",
                 )
-    except RuntimeError as exc:
-        raise ContractComparisonError(
-            "io_error", f"invalid output path: {exc}"
-        ) from exc
+    except (OSError, RuntimeError) as exc:
+        code = "unsafe_output_path" if output.is_symlink() else "io_error"
+        raise ContractComparisonError(code, f"invalid output path: {exc}") from exc
 
     if output.is_symlink():
         raise ContractComparisonError(
@@ -49,11 +49,12 @@ def _check_output_path(output: Path, inputs: list[Path]) -> None:
 def _write_report_atomic(output: Path, payload: str) -> None:
     """Never truncate an existing report if serialization or replacement fails."""
     temporary: Path | None = None
+    existing_mode = stat.S_IMODE(output.stat().st_mode) if output.is_file() else None
     try:
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
-            prefix=f".{output.name}.",
+            prefix=".marketspec-",
             suffix=".tmp",
             dir=output.parent,
             delete=False,
@@ -62,6 +63,8 @@ def _write_report_atomic(output: Path, payload: str) -> None:
             handle.write(payload + "\n")
             handle.flush()
             os.fsync(handle.fileno())
+            if existing_mode is not None and hasattr(os, "fchmod"):
+                os.fchmod(handle.fileno(), existing_mode)
         os.replace(temporary, output)
     finally:
         if temporary is not None:

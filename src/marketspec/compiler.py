@@ -121,7 +121,7 @@ def load_document(text: str, *, format: str | None = None) -> Any:
             return yaml.load(text, Loader=_DecimalLoader)
     except CompileError:
         raise
-    except (json.JSONDecodeError, yaml.YAMLError, ValueError) as exc:
+    except (json.JSONDecodeError, yaml.YAMLError, ValueError, RecursionError) as exc:
         raise CompileError("parse_error", "$", str(exc)) from exc
     raise CompileError("format_error", "$", f"unsupported format {fmt!r}")
 
@@ -133,6 +133,8 @@ def _mapping(value: Any, path: str) -> dict[str, Any]:
 
 
 def _shape(value: dict[str, Any], path: str, required: set[str]) -> None:
+    if any(not isinstance(key, str) for key in value):
+        raise CompileError("type_error", path, "object keys must be strings")
     missing = sorted(required - set(value))
     extra = sorted(set(value) - required)
     if missing:
@@ -196,7 +198,10 @@ def _datetime(value: Any, path: str) -> datetime:
         raise CompileError("invalid_datetime", path, "expected ISO-8601 datetime") from exc
     if result.tzinfo is None or result.utcoffset() is None:
         raise CompileError("naive_datetime", path, "datetime must include a UTC offset")
-    return result.astimezone(UTC)
+    try:
+        return result.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise CompileError("invalid_datetime", path, "datetime out of supported range") from exc
 
 
 def _timezone(value: Any, path: str) -> str:

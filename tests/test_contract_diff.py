@@ -4,6 +4,8 @@ import contextlib
 import copy
 import io
 import json
+import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -211,6 +213,97 @@ class ContractDiffTest(unittest.TestCase):
         self.assertFalse(output)
         self.assertEqual(json.loads(stderr)["error"]["code"], "parse_error")
 
+    def test_cli_non_string_yaml_key_returns_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            good = root / "good.json"
+            bad = root / "bad.yaml"
+            good.write_text(json.dumps(example_contract()), encoding="utf-8")
+            bad.write_text(
+                'schema_version: "0.1"\nmarket_id: test\nevent_id: test\n1: bad\n',
+                encoding="utf-8",
+            )
+            code, stdout, stderr = invoke("diff", str(good), str(bad))
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertEqual(json.loads(stderr)["error"]["code"], "type_error")
+            self.assertNotIn("Traceback", stderr)
+
+    def test_cli_extreme_datetime_returns_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            good = root / "good.json"
+            bad = root / "bad.json"
+            good.write_text(json.dumps(example_contract()), encoding="utf-8")
+            invalid = copy.deepcopy(example_contract())
+            invalid["window"]["end"] = "9999-12-31T23:59:59-01:00"
+            bad.write_text(json.dumps(invalid), encoding="utf-8")
+            code, stdout, stderr = invoke("diff", str(good), str(bad))
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertEqual(json.loads(stderr)["error"]["code"], "invalid_datetime")
+            self.assertNotIn("Traceback", stderr)
+
+    def test_cli_deep_json_returns_two_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            good = root / "good.json"
+            bad = root / "deep.json"
+            good.write_text(json.dumps(example_contract()), encoding="utf-8")
+            bad.write_text("[" * 5000 + "0" + "]" * 5000, encoding="utf-8")
+            code, stdout, stderr = invoke("diff", str(good), str(bad))
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertIn(
+                json.loads(stderr)["error"]["code"], {"parse_error", "type_error"}
+            )
+            self.assertNotIn("Traceback", stderr)
+
+    def test_compiler_recursion_failure_is_parse_error(self) -> None:
+        from marketspec.compiler import CompileError, compile_text
+
+        with (
+            patch(
+                "marketspec.compiler.json.loads", side_effect=RecursionError("nested")
+            ),
+            self.assertRaises(CompileError) as caught,
+        ):
+            compile_text("{}", format="json")
+        self.assertEqual(caught.exception.code, "parse_error")
+
+    @unittest.skipUnless(os.name == "posix", "file modes are POSIX-specific")
+    def test_cli_atomic_replace_preserves_existing_file_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            contract = root / "contract.json"
+            report = root / "report.json"
+            contract.write_text(json.dumps(example_contract()), encoding="utf-8")
+            report.write_text("old report", encoding="utf-8")
+            report.chmod(0o640)
+            code, stdout, stderr = invoke(
+                "diff", str(contract), str(contract), "--output", str(report)
+            )
+            self.assertEqual(code, 0)
+            self.assertFalse(stdout)
+            self.assertFalse(stderr)
+            self.assertEqual(stat.S_IMODE(report.stat().st_mode), 0o640)
+            self.assertFalse(json.loads(report.read_text(encoding="utf-8"))["changed"])
+
+    @unittest.skipUnless(os.name == "posix", "long filenames are filesystem-specific")
+    def test_cli_long_report_basename_is_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            contract = root / "contract.json"
+            report = root / ("r" * 240 + ".json")
+            contract.write_text(json.dumps(example_contract()), encoding="utf-8")
+            code, stdout, stderr = invoke(
+                "diff", str(contract), str(contract), "--output", str(report)
+            )
+            self.assertEqual(code, 0)
+            self.assertFalse(stdout)
+            self.assertFalse(stderr)
+            self.assertFalse(json.loads(report.read_text(encoding="utf-8"))["changed"])
+
     def test_cli_output_never_overwrites_contract_inputs(self) -> None:
         baseline = json.dumps(example_contract())
         with tempfile.TemporaryDirectory() as tmp:
@@ -251,7 +344,7 @@ class ContractDiffTest(unittest.TestCase):
             )
             self.assertEqual(code, 2)
             self.assertFalse(stdout)
-            self.assertEqual(json.loads(stderr)["error"]["code"], "io_error")
+            self.assertEqual(json.loads(stderr)["error"]["code"], "unsafe_output_path")
             self.assertNotIn("Traceback", stderr)
 
     def test_cli_output_does_not_follow_unrelated_symlink(self) -> None:

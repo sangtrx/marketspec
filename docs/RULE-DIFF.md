@@ -59,7 +59,9 @@ With `--evidence`, `replay` additionally includes:
   - `resolution_detail_changed`: both decisive, same outcome but reason or
     observed value changed
   - `inconclusive`: one or both evaluations are UNKNOWN/INVALID, including
-    cases where the candidate source lacks admissible evidence
+    a decisive YES/NO becoming INVALID or cases where the candidate source
+    lacks admissible evidence. Always inspect `status_changed` and both
+    receipts; an inconclusive classification is never an approval.
 
 A single fixture with the same outcome is **not evidence that a rule change is
 safe** across all possible observations. `changed=true` remains the policy
@@ -86,10 +88,12 @@ schema = (
 
 All normal reports are JSON; errors go to stderr as structured JSON.
 With `--output`, an existing regular report file is replaced atomically;
-a failed replacement leaves the previous report intact. Input aliases are
-rejected, and output symlinks and special files are not supported. These
-guards do not authenticate the contract or the destination directory, so
-choose a trusted output directory.
+a failed replacement leaves the previous report intact. Existing report
+permissions are preserved on POSIX; new reports are private to the owner by
+default. **Do not use any existing report when the CLI exits 2:** the report
+may come from an earlier run. Input aliases are rejected, and output symlinks
+and special files are not supported. These guards do not authenticate the
+contract or the destination directory, so choose a trusted output directory.
 
 To create an artifact using any local runner, Jenkins, GitLab CI or a pre-merge script:
 

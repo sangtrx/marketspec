@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from marketspec import __version__
@@ -19,14 +21,51 @@ def _format(path: Path) -> str:
 
 def _check_output_path(output: Path, inputs: list[Path]) -> None:
     """Prevent reports from overwriting inputs through path, symlink or hardlink aliases."""
-    for source in inputs:
-        if output.resolve() == source.resolve() or (
-            output.exists() and source.exists() and output.samefile(source)
-        ):
-            raise ContractComparisonError(
-                "output_input_conflict",
-                "report output must not overwrite a contract or evidence input",
-            )
+    try:
+        resolved_output = output.resolve()
+        for source in inputs:
+            if resolved_output == source.resolve() or (
+                output.exists() and source.exists() and output.samefile(source)
+            ):
+                raise ContractComparisonError(
+                    "output_input_conflict",
+                    "report output must not overwrite a contract or evidence input",
+                )
+    except RuntimeError as exc:
+        raise ContractComparisonError(
+            "io_error", f"invalid output path: {exc}"
+        ) from exc
+
+    if output.is_symlink():
+        raise ContractComparisonError(
+            "unsafe_output_path", "report output must not be a symbolic link"
+        )
+    if output.exists() and not output.is_file():
+        raise ContractComparisonError(
+            "unsafe_output_path", "report output must be a regular file"
+        )
+
+
+def _write_report_atomic(output: Path, payload: str) -> None:
+    """Never truncate an existing report if serialization or replacement fails."""
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            dir=output.parent,
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(payload + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -102,7 +141,7 @@ def main() -> int:
             report = diff_contracts(before, after, evidence=evidence)
             payload = json.dumps(report, ensure_ascii=False, sort_keys=True)
             if output_path is not None:
-                output_path.write_text(payload + "\n", encoding="utf-8")
+                _write_report_atomic(output_path, payload)
             else:
                 print(payload)
             return 1 if report["changed"] else 0

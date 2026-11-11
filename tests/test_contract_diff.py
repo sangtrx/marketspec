@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from marketspec.cli import main
+from marketspec.cli import _check_output_path, main
 from marketspec.compiler import compile_contract, compile_text
 from marketspec.contract_diff import ContractComparisonError, diff_contracts
 
@@ -238,6 +238,82 @@ class ContractDiffTest(unittest.TestCase):
                         json.loads(stderr)["error"]["code"], "output_input_conflict"
                     )
                     self.assertEqual(first.read_text(encoding="utf-8"), baseline)
+
+    def test_cli_symlink_loop_returns_structured_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            contract = root / "contract.json"
+            output = root / "loop.json"
+            contract.write_text(json.dumps(example_contract()), encoding="utf-8")
+            output.symlink_to(output.name)
+            code, stdout, stderr = invoke(
+                "diff", str(contract), str(contract), "--output", str(output)
+            )
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertEqual(json.loads(stderr)["error"]["code"], "io_error")
+            self.assertNotIn("Traceback", stderr)
+
+    def test_cli_output_does_not_follow_unrelated_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            contract = root / "contract.json"
+            destination = root / "other.json"
+            output = root / "report.json"
+            contract.write_text(json.dumps(example_contract()), encoding="utf-8")
+            destination.write_text("preserve", encoding="utf-8")
+            output.symlink_to(destination)
+            code, stdout, stderr = invoke(
+                "diff", str(contract), str(contract), "--output", str(output)
+            )
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertEqual(json.loads(stderr)["error"]["code"], "unsafe_output_path")
+            self.assertEqual(destination.read_text(encoding="utf-8"), "preserve")
+
+    def test_cli_symlink_swap_after_check_cannot_overwrite_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            contract = root / "contract.json"
+            output = root / "report.json"
+            original = json.dumps(example_contract())
+            contract.write_text(original, encoding="utf-8")
+
+            def swap_after_check(destination: Path, inputs: list[Path]) -> None:
+                _check_output_path(destination, inputs)
+                destination.symlink_to(contract)
+
+            with patch(
+                "marketspec.cli._check_output_path", side_effect=swap_after_check
+            ):
+                code, stdout, stderr = invoke(
+                    "diff", str(contract), str(contract), "--output", str(output)
+                )
+            self.assertEqual(code, 0)
+            self.assertFalse(stdout)
+            self.assertFalse(stderr)
+            self.assertEqual(contract.read_text(encoding="utf-8"), original)
+            self.assertFalse(output.is_symlink())
+            self.assertFalse(json.loads(output.read_text(encoding="utf-8"))["changed"])
+
+    def test_cli_failed_replace_keeps_previous_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            contract = root / "contract.json"
+            output = root / "report.json"
+            contract.write_text(json.dumps(example_contract()), encoding="utf-8")
+            output.write_text("existing report", encoding="utf-8")
+            with patch(
+                "marketspec.cli.os.replace", side_effect=OSError("replace failed")
+            ):
+                code, stdout, stderr = invoke(
+                    "diff", str(contract), str(contract), "--output", str(output)
+                )
+            self.assertEqual(code, 2)
+            self.assertFalse(stdout)
+            self.assertEqual(json.loads(stderr)["error"]["code"], "io_error")
+            self.assertEqual(output.read_text(encoding="utf-8"), "existing report")
+            self.assertEqual(list(root.glob(".report.json.*.tmp")), [])
 
     def test_cli_cross_format_round_trip(self) -> None:
         yaml = """

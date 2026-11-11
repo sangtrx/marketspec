@@ -71,9 +71,11 @@ The report schema is packaged at
 ~~~python
 from importlib import resources
 
-schema = resources.files("marketspec").joinpath(
-    "schema/rule-diff-report.v1.schema.json"
-).read_text(encoding="utf-8")
+schema = (
+    resources.files("marketspec")
+    .joinpath("schema/rule-diff-report.v1.schema.json")
+    .read_text(encoding="utf-8")
+)
 ~~~
 
 ## Exit codes and portable CI
@@ -82,8 +84,14 @@ schema = resources.files("marketspec").joinpath(
 - **1** — compiled rules changed and require review
 - **2** — malformed contract/evidence, different market/event identity, or I/O error
 
-All normal reports are JSON; errors go to stderr as structured JSON. To create
-an artifact using any local runner, Jenkins, GitLab CI or a pre-merge script:
+All normal reports are JSON; errors go to stderr as structured JSON.
+With `--output`, an existing regular report file is replaced atomically;
+a failed replacement leaves the previous report intact. Input aliases are
+rejected, and output symlinks and special files are not supported. These
+guards do not authenticate the contract or the destination directory, so
+choose a trusted output directory.
+
+To create an artifact using any local runner, Jenkins, GitLab CI or a pre-merge script:
 
 ~~~bash
 MARKETSPEC_REPORT=rule-diff.json sh scripts/check-contract-revision.sh \
